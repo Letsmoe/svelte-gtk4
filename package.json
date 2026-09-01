@@ -1,0 +1,21 @@
+{
+  "name": "@neoworks/svelte-gtk4",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "description": "Compiled Svelte 5 components rendering to GTK4 widgets under GJS.",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "svelte": "^5.57.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "gjs-esm-types": "^0.0.4",
+    "svelte": "^5.57.0",
+    "typescript": "^5.7.2"
+  }
+}
