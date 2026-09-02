@@ -1,0 +1,7 @@
+{
+  "id": "vpn",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts",
+  "views": "views.js"
+}

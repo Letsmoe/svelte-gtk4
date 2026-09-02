@@ -1,0 +1,43 @@
+# Go build artifacts
+*.exe
+*.test
+*.out
+/apps/shell/neoshell
+/apps/extensions/notifications/daemon/neoshell-notifyd
+/apps/extensions/systray/daemon/neoshell-trayd
+/apps/shell/neoshell-search
+/neoshell
+
+# Rust build artifacts
+/apps/bg/target/
+/apps/settings/target/
+# Tauri-generated permission schemas
+/apps/settings/gen/schemas/
+
+# C++/WPE render host build output
+/apps/render-host/gen/
+/apps/render-host/src/*.o
+/apps/render-host/neoshell-render
+
+# WebKit/Ultralight runtime cache (cookies, created in the host's cwd)
+/default/
+/apps/render-host/default/
+/apps/shell/default/
+
+# Node
+node_modules/
+
+# Editor / OS
+.DS_Store
+*.swp
+
+# Obsolete Ultralight SDK archive (pre-WPE)
+/ultralight-free-sdk-*.7z
+
+# Stray artifacts / local tooling (not project source)
+/tim-knauer-voice.mp3
+/history.txt
+/apps/shell/history.txt
+/apps/shell/searchbench
+/.agents/
+/skills-lock.json

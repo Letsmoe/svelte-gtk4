@@ -1,0 +1,19 @@
+{
+  "name": "@neoshell/host",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun src/main.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@neoworks/extension-system": "link:@neoworks/extension-system"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@neoshell/surface": "workspace:*"
+  }
+}

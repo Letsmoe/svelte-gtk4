@@ -14,23 +14,10 @@ import {
   setElementBackend,
 } from "../dom/nodes";
 import { setMirror } from "../dom/hooks";
-import { applyCommon } from "./attrs";
 import { addListener } from "./events";
-import { SPECS, type WidgetSpec } from "./widgets";
+import { type Mount, mountFor } from "./widgets";
 
-// The mount target. Its children are windows, which are presented rather than
-// parented into anything.
-const rootSpec: WidgetSpec = {
-  create: () => ({ isRoot: true }),
-  insert(_parent: SElement, child: SElement): void {
-    child.widget.present();
-  },
-  remove(_parent: SElement, child: SElement): void {
-    child.widget.destroy();
-  },
-};
-
-export const ROOT_TAG = "gtkroot";
+export { ROOT_TAG } from "./widgets";
 
 export function install(): void {
   setElementBackend({
@@ -38,22 +25,14 @@ export function install(): void {
       if (!isBuildingWidgets()) {
         return;
       }
-      const spec = specFor(node.tagName);
-      if (spec === null) {
-        return;
-      }
-      node.widget = spec.create();
+      node.impl = mountFor(node);
     },
 
     attributeChanged(node: SElement, name: string, value: unknown): void {
-      if (node.widget === null) {
+      if (node.impl === null) {
         return;
       }
-      const spec = specOf(node);
-      if (spec.attr !== undefined && spec.attr(node, name, value)) {
-        return;
-      }
-      applyCommon(node, name, value);
+      node.impl.attr(name, value);
     },
 
     listenerAdded(node: SElement, type: string, handler: EventHandler): void {
@@ -98,10 +77,10 @@ function attach(host: SElement, subtree: SNode): void {
   if (widgets.length === 0) {
     return;
   }
-  const spec = specOf(host);
+  const mount = mountOf(host);
   let before = widgetAfter(widgets[widgets.length - 1], host);
   for (let at = widgets.length - 1; at >= 0; at--) {
-    spec.insert(host, widgets[at], before);
+    mount.insert(widgets[at], before);
     before = widgets[at].widget;
   }
 }
@@ -109,24 +88,24 @@ function attach(host: SElement, subtree: SNode): void {
 function detach(host: SElement, subtree: SNode): void {
   const widgets: SElement[] = [];
   collectWidgets(subtree, widgets);
-  const spec = specOf(host);
+  const mount = mountOf(host);
   for (const node of widgets) {
-    spec.remove(host, node);
+    mount.remove(node);
   }
 }
 
 function syncText(host: SElement): void {
-  const spec = specOf(host);
-  if (spec.setText === undefined) {
+  const mount = mountOf(host);
+  if (mount.setText === undefined) {
     return;
   }
-  spec.setText(host, textOf(host));
+  mount.setText(textOf(host));
 }
 
 function hostOf(node: SNode | null): SElement | null {
   let candidate = node;
   while (candidate !== null) {
-    if (candidate instanceof SElement && candidate.widget !== null) {
+    if (candidate instanceof SElement && candidate.impl !== null) {
       return candidate;
     }
     candidate = candidate.parentNode;
@@ -135,7 +114,7 @@ function hostOf(node: SNode | null): SElement | null {
 }
 
 function collectWidgets(node: SNode, out: SElement[]): void {
-  if (node instanceof SElement && node.widget !== null) {
+  if (node instanceof SElement && node.impl !== null) {
     out.push(node);
     return;
   }
@@ -163,7 +142,7 @@ function widgetAfter(node: SNode, host: SElement): any {
 }
 
 function firstWidget(node: SNode): any {
-  if (node instanceof SElement && node.widget !== null) {
+  if (node instanceof SElement && node.impl !== null) {
     return node.widget;
   }
   let child = node.firstChild;
@@ -193,27 +172,15 @@ function textUnder(node: SNode): string {
   if (node instanceof SText) {
     return node.data;
   }
-  if (node instanceof SElement && node.widget !== null) {
+  if (node instanceof SElement && node.impl !== null) {
     return "";
   }
   return textOf(node);
 }
 
-function specOf(node: SElement): WidgetSpec {
-  const spec = specFor(node.tagName);
-  if (spec === null) {
+function mountOf(node: SElement): Mount {
+  if (node.impl === null) {
     throw new Error(`svelte-gtk4: no widget registered for <${node.tagName}>`);
   }
-  return spec;
-}
-
-function specFor(tagName: string): WidgetSpec | null {
-  if (tagName === ROOT_TAG) {
-    return rootSpec;
-  }
-  const spec = SPECS[tagName];
-  if (spec === undefined) {
-    return null;
-  }
-  return spec;
+  return node.impl;
 }

@@ -1,0 +1,1197 @@
+/* GTK4 CSS, not browser CSS. The webview build styled everything with Tailwind
+   utilities against a DaisyUI theme; none of that survives, so the palette is
+   restated here as custom properties (GTK >= 4.16) and every utility class the
+   markup used becomes a semantic rule. Each rule keeps the utilities it
+   replaces in a comment, because that is the only record of what the design
+   was.
+
+   What GTK CSS does not have, and what the markup does instead:
+     width / height     → the `width` / `height` attributes, or min-*
+     overflow           → the `clip` attribute
+     flex / grid        → gtkbox, gtkcenterbox, gtkgrid
+     sibling combinators→ computed classes in the component
+     pseudo-elements    → real widgets                                        */
+
+/* ── palette ──────────────────────────────────────────────────────────────
+   The neoworks DaisyUI theme, verbatim. */
+:root {
+  --base-100: #000000; /* canvas                  */
+  --base-200: #0b0b0d; /* elevated (bar, dock)    */
+  --base-300: #141416; /* surface (cards, panels) */
+  --base-content: #fafafa;
+
+  --primary: #fafafa;
+  --secondary: #1c1c1f;
+  --secondary-content: #a1a1aa;
+  --accent: #a78bfa;
+  --neutral: #1c1c1f;
+  --neutral-content: #71717a;
+
+  --info: #60a5fa;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --error: #f87171;
+
+  --radius-field: 6px;
+  --radius-box: 8px;
+}
+
+/* A layer surface has to be see-through, or the theme's opaque window
+   background paints over everything the shell draws. */
+window {
+  background-color: transparent;
+  color: var(--base-content);
+  font-size: 13px;
+}
+
+/* GTK gives buttons a themed background even with has-frame off. Decoration
+   only: an element selector out-specifies the single-class rules that set each
+   button's own padding and radius. */
+.topbar button,
+.dock button,
+.island button,
+.panel button {
+  background-image: none;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* ── top bar ──────────────────────────────────────────────────────────── */
+
+/* bg-base-200/40 px-3 text-[13px] font-medium text-base-content */
+.topbar {
+  background-color: alpha(#0b0b0d, 0.4);
+  color: var(--base-content);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* h-6 min-w-6 rounded-lg px-2 text-[11px] transition-colors duration-150.
+   No h-6: GTK CSS has no height, so min-height is the floor and the row's
+   valign keeps it from stretching. */
+.workspace {
+  min-height: 24px;
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-box);
+  font-size: 11px;
+  transition: background-color 150ms, color 150ms;
+}
+
+.workspace:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+/* bg-base-content/15 font-semibold text-base-content */
+.workspace.active {
+  background-color: alpha(#fafafa, 0.15);
+  color: var(--base-content);
+  font-weight: 600;
+}
+
+/* text-base-content/70 */
+.workspace.occupied {
+  color: alpha(#fafafa, 0.7);
+}
+
+/* text-base-content/25 */
+.workspace.empty {
+  color: alpha(#fafafa, 0.25);
+}
+
+/* bg-warning/20 font-semibold text-warning */
+.workspace.urgent {
+  background-color: alpha(#fbbf24, 0.2);
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* rounded-lg px-2 py-0.5 tabular-nums hover:bg-base-content/10.
+   tabular-nums is a Pango attribute, not CSS — the `tabular` attribute on the
+   label sets it. */
+.clock {
+  padding: 2px 8px;
+  border-radius: var(--radius-box);
+  transition: background-color 150ms;
+}
+
+.clock:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+/* text-base-content/60 */
+.clock-date {
+  color: alpha(#fafafa, 0.6);
+}
+
+/* ── battery ──────────────────────────────────────────────────────────── */
+
+/* text-base-content/80 tabular-nums */
+.battery {
+  color: alpha(#fafafa, 0.8);
+}
+
+/* The SVG's rounded outline: stroke-opacity 0.5 on a 3px-radius rect. */
+.battery-shell {
+  border: 1px solid alpha(#fafafa, 0.5);
+  border-radius: 4px;
+  padding: 1px;
+}
+
+/* fill-current, and fill-error below 15% on battery. */
+.battery-fill {
+  background-color: currentColor;
+  border-radius: 2px;
+}
+
+.battery-fill.low {
+  background-color: var(--error);
+}
+
+/* The nub on the positive terminal: fill-current at 0.5 opacity. */
+.battery-nub {
+  background-color: alpha(#fafafa, 0.5);
+  border-radius: 0 1px 1px 0;
+}
+
+/* The charging bolt sits over the fill, drawn in the canvas colour so it reads
+   as cut out of the level the way the SVG's stroked path did. */
+.battery-bolt {
+  color: var(--base-100);
+  font-size: 9px;
+}
+
+/* ── notch ────────────────────────────────────────────────────────────── */
+
+/* Inverted fillets flanking the cutout, so the bar appears to curve into the
+   notch instead of butting it. GTK has no `mask`, so the colour is baked into
+   the radial gradient rather than masked out of a solid patch. */
+.notch-fillet-left,
+.notch-fillet-right {
+  min-width: 10px;
+  min-height: 10px;
+}
+
+.notch-fillet-left {
+  background-image: radial-gradient(
+    circle 10px at 0 10px,
+    transparent 0 10px,
+    var(--base-100) 10px
+  );
+}
+
+.notch-fillet-right {
+  background-image: radial-gradient(
+    circle 10px at 10px 10px,
+    transparent 0 10px,
+    var(--base-100) 10px
+  );
+}
+
+/* Events move the island sideways only; height changes just once, when the
+   island is deliberately opened. */
+.island {
+  background-color: var(--base-100);
+  color: var(--base-content);
+  border-radius: 0 0 10px 10px;
+  font-size: 12px;
+  transition:
+    min-width 260ms cubic-bezier(0.32, 1.24, 0.5, 1),
+    min-height 260ms cubic-bezier(0.32, 1.24, 0.5, 1);
+}
+
+/* Everything the open state resizes runs on the island's own curve and
+   duration. Left to snap, the header would reach its full 64px while the
+   island around it was still a third of the way open, which reads as the
+   content jumping and the notch crawling after it. */
+.island-header,
+.island-art,
+.island-title,
+.level-meter {
+  transition:
+    min-width 260ms cubic-bezier(0.32, 1.24, 0.5, 1),
+    min-height 260ms cubic-bezier(0.32, 1.24, 0.5, 1),
+    padding 260ms cubic-bezier(0.32, 1.24, 0.5, 1),
+    border-radius 260ms cubic-bezier(0.32, 1.24, 0.5, 1),
+    font-size 260ms cubic-bezier(0.32, 1.24, 0.5, 1);
+}
+
+.island-header-small { padding: 0 12px; min-height: 30px; }
+.island-header-large { padding: 4px 16px 0 16px; min-height: 64px; }
+
+/* Hovering only grows the island; the header itself never tints, so the
+   theme's button states have to be neutralised explicitly. */
+.island-header:hover,
+.island-header:active,
+.island-header:focus {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+.tone-dot { min-width: 6px; min-height: 6px; border-radius: 3px; }
+.tone-neutral { color: var(--base-content); background-color: var(--base-content); }
+.tone-accent  { color: var(--accent);  background-color: var(--accent); }
+.tone-success { color: var(--success); background-color: var(--success); }
+.tone-warning { color: var(--warning); background-color: var(--warning); }
+.tone-error   { color: var(--error);   background-color: var(--error); }
+
+.island-label { font-weight: 500; }
+.island-detail { color: alpha(#fafafa, 0.5); }
+
+.island-art-small { min-width: 20px; min-height: 20px; border-radius: 6px; background-color: alpha(#fafafa, 0.1); }
+.island-art-large { min-width: 48px; min-height: 48px; border-radius: 8px; background-color: alpha(#fafafa, 0.1); }
+
+.island-title { font-weight: 500; }
+.island-title-large { font-size: 15px; font-weight: 600; }
+
+/* Mounted at the moment the island opens, so a transition has nothing to
+   start from — an animation runs on its own from the first frame. */
+.island-subtitle {
+  font-size: 13px;
+  color: alpha(#fafafa, 0.6);
+  animation: island-fade-in 260ms ease-out;
+}
+
+@keyframes island-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.island-expanded { padding: 0 16px 16px 16px; }
+.island-expanded-detail { font-size: 13px; color: alpha(#fafafa, 0.7); }
+.island-expanded-id { font-size: 10px; letter-spacing: 1px; color: alpha(#fafafa, 0.3); }
+
+/* Four bars bouncing in sequence. A paused player freezes them mid-stride. */
+.level-meter { color: var(--accent); }
+.level-meter-small { min-height: 12px; }
+.level-meter-large { min-height: 16px; }
+
+.level-bar {
+  min-width: 2px;
+  border-radius: 1px;
+  background-color: currentColor;
+  transform-origin: center;
+  animation: level 900ms ease-in-out infinite alternate;
+}
+
+.level-bar-0 { animation-delay: 0ms; }
+.level-bar-1 { animation-delay: 130ms; }
+.level-bar-2 { animation-delay: 260ms; }
+.level-bar-3 { animation-delay: 390ms; }
+
+.paused .level-bar { animation-play-state: paused; }
+
+@keyframes level {
+  from { transform: scaleY(0.3); }
+  to   { transform: scaleY(1); }
+}
+
+.progress-track {
+  min-height: 3px;
+  margin: 0 16px 6px 16px;
+  border-radius: 2px;
+  background-color: alpha(#fafafa, 0.15);
+}
+
+.progress-fill {
+  min-height: 3px;
+  border-radius: 2px;
+  background-color: currentColor;
+  transition: min-width 200ms;
+}
+
+/* Both times are the same width — an elapsed side narrower than the remaining
+   side would push the track off centre and out of line with the transport. */
+.scrub-time { min-width: 48px; font-size: 11px; color: alpha(#fafafa, 0.5); }
+
+.scrub-track {
+  min-height: 6px;
+  border-radius: 3px;
+  background-color: alpha(#fafafa, 0.15);
+}
+
+.scrub-played {
+  min-height: 6px;
+  border-radius: 3px;
+  background-color: alpha(#fafafa, 0.7);
+  transition: min-width 500ms linear;
+}
+
+.control {
+  padding: 4px;
+  border-radius: var(--radius-box);
+  transition: background-color 150ms;
+}
+
+.control:hover { background-color: alpha(#fafafa, 0.1); }
+.control-active { color: var(--accent); }
+.control-idle { color: alpha(#fafafa, 0.85); }
+
+/* ── dock ─────────────────────────────────────────────────────────────── */
+
+/* rounded-2xl border border-base-content/10 bg-base-200/40 px-2 py-1.5 */
+.dock {
+  background-color: alpha(#0b0b0d, 0.4);
+  border: 1px solid alpha(#fafafa, 0.1);
+  border-radius: 16px;
+  padding: 6px 8px;
+}
+
+/* The gap between the panel and the screen edge is padding on the box that
+   carries the input region, never a margin on the panel: a margin would leave
+   those pixels outside the region, and the pointer travelling up from the hot
+   strip would cross a dead band and collapse the dock. */
+.dock-panel {
+  padding-bottom: 8px;
+}
+
+/* w-13 pb-1.5 — the tile keeps its box while the icon inside it magnifies. */
+.dock-app {
+  padding-bottom: 6px;
+}
+
+/* transition transform 160ms cubic-bezier(0.2, 0.7, 0.3, 1), with the
+   transform itself computed per item in the component: GTK CSS has no sibling
+   combinators to say "the one next to the hovered tile". */
+.dock-icon {
+  transition: transform 160ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* h-1 w-1 rounded-full bg-base-content/80 */
+.dock-running {
+  background-color: alpha(#fafafa, 0.8);
+  border-radius: 2px;
+}
+
+/* The strip exists to be in the input region, which is what lets the pointer
+   reach a hidden dock at all — so it must not be `transparent`. A window whose
+   whole render tree draws nothing never commits a buffer, is never mapped, and
+   then takes no input either; one hundredth of an alpha is enough to make it a
+   real paint and still invisible. */
+.dock-hot-strip {
+  background-color: alpha(#000000, 0.01);
+}
+
+/* Launch feedback: the icon presses into the dock, is flung up with the
+   stretch of leaving the floor, hangs at the apex, then lands squashed.
+   GTK's animation parser takes neither a per-keyframe timing function nor a
+   percentage inside transform, so the arc's easing is one curve for the whole
+   cycle and the travel is stated in pixels against the icon's 44. */
+.hopping {
+  animation: hop 1.15s ease-in-out infinite;
+}
+
+@keyframes hop {
+  0%   { transform: translateY(0px) scale(1, 1); }
+  9%   { transform: translateY(0px) scale(1.12, 0.8); }
+  19%  { transform: translateY(-8px) scale(0.94, 1.1); }
+  50%  { transform: translateY(-44px) scale(1, 1); }
+  76%  { transform: translateY(0px) scale(1.1, 0.86); }
+  86%  { transform: translateY(0px) scale(0.98, 1.03); }
+  94%  { transform: translateY(0px) scale(1, 1); }
+  100% { transform: translateY(0px) scale(1, 1); }
+}
+
+/* ── wallpaper ────────────────────────────────────────────────────────── */
+
+/* bg-base-300 behind the image, so an unset or unreadable wallpaper is a flat
+   surface rather than a hole through to the compositor. */
+.wallpaper {
+  background-color: var(--base-300);
+}
+
+/* ── desktop ──────────────────────────────────────────────────────────── */
+
+/* The background is the desktop's own hit area: it has to paint, or the whole
+   window would never be mapped and neither the icons nor the menu would take a
+   click. The wallpaper is a window of its own behind it. */
+.desktop-background {
+  background-color: alpha(#000000, 0.01);
+}
+
+/* flex flex-col items-center gap-1 rounded-lg p-2 text-center */
+.desktop-icon {
+  padding: 8px;
+  border-radius: var(--radius-box);
+  transition: background-color 120ms;
+}
+
+.desktop-icon:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+/* bg-base-content/20 ring-1 ring-base-content/25 — GTK has no ring utility, so
+   the outline is a real border and the padding loses the pixel it takes. */
+.desktop-icon.selected {
+  background-color: alpha(#fafafa, 0.2);
+  border: 1px solid alpha(#fafafa, 0.25);
+  padding: 7px;
+}
+
+/* drop-shadow-md */
+.desktop-icon-art {
+  -gtk-icon-shadow: 0 2px 3px alpha(#000000, 0.5);
+}
+
+/* line-clamp-2 text-[11px] leading-tight drop-shadow-md */
+.desktop-icon-label {
+  font-size: 11px;
+  text-shadow: 0 1px 2px alpha(#000000, 0.7);
+}
+
+.desktop-icon-rename {
+  font-size: 11px;
+  padding: 0 4px;
+  min-height: 0;
+  background-color: var(--base-100);
+  border-radius: 4px;
+}
+
+/* rounded-sm border border-primary/70 bg-primary/20 */
+.rubber-band {
+  background-color: alpha(#fafafa, 0.2);
+  border: 1px solid alpha(#fafafa, 0.7);
+  border-radius: 2px;
+}
+
+/* bg-primary/70, one pixel wide */
+.alignment-guide {
+  background-color: alpha(#fafafa, 0.7);
+}
+
+/* The lift is the drag's own feedback: a widget sitting still casts nothing,
+   and the shadow arrives fast enough to read as a response to the grab rather
+   than as an animation of its own. */
+.widget-slot {
+  border-radius: 24px;
+  transition: box-shadow 100ms ease-out;
+}
+
+.widget-slot.dragging {
+  box-shadow: 0 25px 50px alpha(#000000, 0.55);
+}
+
+/* Faint where the drop would be refused, since the widget will spring back. */
+.widget-preview {
+  border-radius: 24px;
+  border: 2px solid alpha(#ffffff, 0.8);
+}
+
+.widget-preview.taken {
+  border-color: alpha(#ffffff, 0.2);
+}
+
+/* ── context menu ─────────────────────────────────────────────────────── */
+
+/* The backdrop only exists to catch the click that dismisses the menu, so it
+   paints the least GTK will still commit a frame for. */
+.menu-backdrop {
+  background-color: alpha(#000000, 0.01);
+}
+
+/* min-w-52 rounded-xl border border-base-content/10 bg-base-200/95 p-1
+   shadow-2xl backdrop-blur-xl */
+.menu {
+  background-color: alpha(#0b0b0d, 0.95);
+  border: 1px solid alpha(#fafafa, 0.1);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 25px 50px alpha(#000000, 0.5);
+}
+
+/* rounded-lg px-3 py-1.5 text-[13px] */
+.menu-row {
+  padding: 0 12px;
+  border-radius: var(--radius-box);
+  font-size: 13px;
+}
+
+.menu-row:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.menu-row:disabled {
+  opacity: 0.4;
+}
+
+.menu-row.danger {
+  color: var(--error);
+}
+
+.menu-check {
+  color: alpha(#fafafa, 0.8);
+}
+
+.menu-arrow {
+  color: alpha(#fafafa, 0.6);
+}
+
+/* my-1 h-px bg-base-content/10 */
+.menu-separator {
+  margin: 4px 0;
+  min-height: 1px;
+  background-color: alpha(#fafafa, 0.1);
+}
+
+/* ── quick settings ───────────────────────────────────────────────────── */
+
+/* rounded-3xl border border-base-content/8 bg-base-200 p-2.5 shadow-2xl —
+   the tray is its own layer surface now, so the absolute placement under the
+   bar is the window's anchors and only the box survives here. */
+.panel {
+  background-color: var(--base-200);
+  border: 1px solid alpha(#fafafa, 0.08);
+  border-radius: 24px;
+  padding: 10px;
+  box-shadow: 0 25px 50px alpha(#000000, 0.6);
+  animation: qs-unroll 160ms ease-out;
+}
+
+/* The tray drops out from under the bar rather than fading, so it reads as
+   attached to the edge the clock lives on. The webview build clipped it open
+   with clip-path, which GTK has no equivalent for; a short slide reads the
+   same way and transform is one of the few GTK CSS properties that animates. */
+@keyframes qs-unroll {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* rounded-2xl bg-base-300/80, and the two states the tile computed inline. */
+.qs-tile {
+  background-color: alpha(#141416, 0.8);
+  border-radius: 16px;
+  transition: background-color 120ms;
+}
+
+.qs-tile:hover {
+  background-color: var(--base-300);
+}
+
+.qs-tile.on {
+  background-color: alpha(#60a5fa, 0.2);
+}
+
+.qs-tile.on:hover {
+  background-color: alpha(#60a5fa, 0.25);
+}
+
+/* bg-base-300/50 opacity-45 — GTK dims an insensitive widget itself, so this
+   only has to carry the flatter surface. */
+.qs-tile.off {
+  background-color: alpha(#141416, 0.5);
+}
+
+/* The tile's own padding lives on the buttons inside it, so the chevron's hit
+   area reaches the full height of the row. */
+.qs-tile-main {
+  padding: 0 0 0 10px;
+  border-radius: 16px;
+}
+
+.qs-tile-open {
+  padding: 0 8px 0 4px;
+  border-radius: 16px;
+  color: alpha(#fafafa, 0.45);
+  transition: color 120ms;
+}
+
+.qs-tile-open:hover {
+  color: var(--base-content);
+}
+
+/* h-8 w-8 rounded-full bg-base-content/10 */
+.qs-badge {
+  background-color: alpha(#fafafa, 0.1);
+  color: alpha(#fafafa, 0.7);
+  border-radius: 16px;
+}
+
+.qs-badge.on {
+  background-color: var(--info);
+  color: var(--base-100);
+}
+
+.qs-badge.off {
+  background-color: alpha(#fafafa, 0.1);
+  color: alpha(#fafafa, 0.6);
+}
+
+/* text-[12px] leading-tight font-medium */
+.qs-tile-title {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* text-[10px] leading-tight opacity-55 */
+.qs-tile-subtitle {
+  font-size: 10px;
+  color: alpha(#fafafa, 0.55);
+}
+
+/* text-[9.5px] leading-[1.15] */
+.qs-tile-compact-label {
+  font-size: 10px;
+}
+
+/* The slider was a range input whose track carried the fill as a gradient. A
+   Gtk.Scale has the parts already: the trough is the pill, the highlight is
+   the fill, and the handle is collapsed so the fill's edge reads as one. */
+.qs-slider trough {
+  min-height: 32px;
+  border-radius: 16px;
+  background-color: alpha(#ffffff, 0.1);
+  border: none;
+  padding: 0;
+}
+
+/* Adwaita insets the highlight by a negative margin so it laps over the
+   trough's border. Dropping that border without dropping the margin leaves
+   GTK computing a min width of -2 and warning on every allocation. */
+.qs-slider highlight {
+  min-height: 32px;
+  border-radius: 16px;
+  background-color: var(--info);
+  background-image: none;
+  border: none;
+  margin: 0;
+}
+
+/* The handle is invisible, but not zero-wide: GtkRange sizes the highlight
+   against it, and a slider with no width makes that come out negative — which
+   GTK warns about on every allocation. */
+.qs-slider slider {
+  min-width: 2px;
+  min-height: 32px;
+  margin: 0;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Both spellings sit over the left end of the trough; only the button form
+   takes a click, so only it gets a hover. */
+.qs-slider-icon,
+.qs-slider-lamp {
+  min-width: 36px;
+  color: alpha(#fafafa, 0.8);
+  padding: 0;
+}
+
+.qs-slider-icon {
+  border-radius: 16px;
+}
+
+.qs-slider-icon:hover {
+  color: var(--base-content);
+}
+
+/* border-t border-base-content/10 */
+.qs-separator {
+  min-height: 1px;
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.qs-footer {
+  padding: 2px 2px 0 2px;
+}
+
+/* rounded-full px-1.5 py-1 text-base-content/70 */
+.qs-power-button {
+  padding: 4px 6px;
+  border-radius: 16px;
+  color: alpha(#fafafa, 0.7);
+}
+
+.qs-power-button:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+/* px-1 text-[10.5px] tabular-nums text-base-content/60 */
+.qs-battery {
+  font-size: 11px;
+  padding: 0 4px;
+  color: alpha(#fafafa, 0.6);
+}
+
+/* rounded-2xl bg-base-300/70 p-1 */
+.qs-power-menu {
+  background-color: alpha(#141416, 0.7);
+  border-radius: 16px;
+  padding: 4px;
+}
+
+/* rounded-xl px-3 py-1.5 text-left text-[12px] */
+.qs-power-item {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.qs-power-item:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.qs-power-item.danger {
+  color: var(--error);
+}
+
+.qs-power-item.danger:hover {
+  background-color: alpha(#f87171, 0.15);
+}
+
+/* ── quick settings: detail pages ─────────────────────────────────────── */
+
+.qs-page-header {
+  padding: 0 2px;
+}
+
+/* h-8 w-8 rounded-full hover:bg-base-content/10 */
+.qs-round-button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 16px;
+}
+
+.qs-round-button:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+/* text-[14px] font-medium */
+.qs-page-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* rounded-lg px-3 py-2 text-[11px] text-error bg-error/15 */
+.qs-failure {
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--error);
+  background-color: alpha(#f87171, 0.15);
+}
+
+/* px-1 py-6 text-center text-[12px] text-base-content/50 */
+.qs-empty {
+  font-size: 12px;
+  padding: 24px 4px;
+  color: alpha(#fafafa, 0.5);
+}
+
+/* text-[11px] text-base-content/60 */
+.qs-prompt {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.6);
+}
+
+.qs-entry {
+  background-color: var(--base-300);
+  border-radius: var(--radius-field);
+  font-size: 12px;
+}
+
+/* rounded-xl px-2.5 py-2 — the row is the list item in both pages, so the
+   button form (Wi-Fi, nearby devices) and the box form that holds a second
+   button (a paired device's Forget) share it. */
+.qs-row {
+  padding: 8px 10px;
+  border-radius: 12px;
+  transition: background-color 120ms;
+}
+
+.qs-row:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.qs-row.active {
+  background-color: alpha(#60a5fa, 0.2);
+}
+
+.qs-row-main {
+  padding: 0;
+  border-radius: 12px;
+}
+
+/* px-2.5 py-2 text-[10px] opacity-40 */
+.qs-row-action {
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 12px;
+  color: alpha(#fafafa, 0.4);
+}
+
+.qs-row-action:hover {
+  color: var(--base-content);
+}
+
+/* text-[12px] leading-tight */
+.qs-row-title {
+  font-size: 12px;
+}
+
+/* text-[10px] leading-tight opacity-50 */
+.qs-row-note {
+  font-size: 10px;
+  color: alpha(#fafafa, 0.5);
+}
+
+.qs-row-note.connected {
+  color: var(--info);
+}
+
+/* px-2.5 py-1 text-[10px] tracking-wide uppercase opacity-40 — GTK CSS has no
+   text-transform, so the markup spells the headings in capitals. */
+.qs-section {
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  color: alpha(#fafafa, 0.4);
+}
+
+/* rounded-xl bg-base-300/60 px-3 py-2.5 text-[11px] */
+.qs-details {
+  background-color: alpha(#141416, 0.6);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 11px;
+}
+
+.qs-detail-key {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.5);
+}
+
+.qs-detail-value {
+  font-size: 11px;
+}
+
+/* btn btn-sm text-[12px] */
+.qs-button {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-field);
+}
+
+.qs-button:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.qs-button.primary {
+  background-color: var(--info);
+  color: var(--base-100);
+}
+
+.qs-button.primary:hover {
+  background-color: alpha(#60a5fa, 0.85);
+}
+
+/* ── widget gallery ───────────────────────────────────────────────────── */
+
+/* rounded-t-3xl bg-base-300/80 ring-1 ring-base-content/10 shadow-2xl
+   backdrop-blur-2xl — the blur is the compositor's, asked for by the node. */
+.gallery {
+  background-color: alpha(#141416, 0.8);
+  border: 1px solid alpha(#fafafa, 0.1);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -25px 50px alpha(#000000, 0.5);
+}
+
+/* border-r border-base-content/10 p-4 */
+.gallery-sidebar {
+  padding: 16px;
+  border-right: 1px solid alpha(#fafafa, 0.1);
+}
+
+.gallery-search {
+  background-color: alpha(#000000, 0.6);
+  border: 1px solid alpha(#fafafa, 0.15);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.gallery-search:focus-within {
+  border-color: alpha(#fafafa, 0.4);
+}
+
+/* rounded-lg px-3 py-2 text-left text-sm */
+.gallery-category {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.gallery-category:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.gallery-category.active {
+  background-color: alpha(#fafafa, 0.15);
+  font-weight: 500;
+}
+
+/* bg-primary px-3 py-1.5 text-sm text-primary-content */
+.gallery-done {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background-color: var(--primary);
+  color: var(--base-100);
+}
+
+.gallery-body {
+  padding: 24px;
+}
+
+.gallery-empty {
+  font-size: 13px;
+  color: alpha(#fafafa, 0.6);
+}
+
+/* The preview is a live widget scaled down, so it clips rather than paints —
+   a background here would show through every card that has none of its own. */
+.gallery-preview {
+  border-radius: 24px;
+}
+
+/* cursor-grab in the webview, where the tile was dragged onto the desktop. A
+   pointer grab does not cross layer surfaces, so the tile is clicked instead
+   and the hover is what says so. */
+.gallery-tile {
+  padding: 4px;
+  border-radius: 24px;
+  transition: background-color 120ms;
+}
+
+.gallery-tile:hover {
+  background-color: alpha(#fafafa, 0.08);
+}
+
+/* text-sm font-medium */
+.gallery-tile-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* text-xs text-base-content/60 */
+.gallery-tile-category {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.6);
+}
+
+/* ── desktop widget cards ─────────────────────────────────────────────── */
+
+/* rounded-3xl bg-base-300/65 p-4 shadow-lg ring-1 ring-base-content/10
+   backdrop-blur-xl — the blur is the compositor's, asked for by the node. */
+.card {
+  background-color: alpha(#141416, 0.65);
+  border: 1px solid alpha(#fafafa, 0.1);
+  border-radius: 24px;
+  padding: 14px;
+  box-shadow: 0 10px 20px alpha(#000000, 0.35);
+}
+
+/* text-sm font-medium */
+.card-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* text-xs leading-snug text-base-content/60 */
+.card-hint {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.6);
+}
+
+.card-place {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* text-5xl leading-tight font-light — the headline reading. */
+.card-reading {
+  font-size: 44px;
+  font-weight: 300;
+}
+
+/* text-sm text-base-content/90 */
+.card-condition {
+  font-size: 13px;
+  color: alpha(#fafafa, 0.9);
+}
+
+/* text-xs text-base-content/60 */
+.card-range {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.6);
+}
+
+/* The gear was revealed on group-hover. GTK CSS cannot key a child's opacity
+   off an ancestor's hover, so it is always drawn and simply stays quiet. */
+.card-gear {
+  padding: 4px;
+  margin: 2px;
+  border-radius: 12px;
+  color: alpha(#fafafa, 0.45);
+}
+
+.card-gear:hover {
+  background-color: alpha(#fafafa, 0.1);
+  color: var(--base-content);
+}
+
+.card-strip-label {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.6);
+}
+
+.card-strip-value {
+  font-size: 13px;
+}
+
+.card-day-label {
+  font-size: 13px;
+  color: alpha(#fafafa, 0.7);
+}
+
+.card-day-low {
+  font-size: 13px;
+  color: alpha(#fafafa, 0.6);
+}
+
+.card-day-high {
+  font-size: 13px;
+}
+
+/* h-1 rounded-full bg-base-content/15, with the day's range laid over it. */
+.card-day-track {
+  min-height: 4px;
+  border-radius: 2px;
+  background-color: alpha(#fafafa, 0.15);
+}
+
+/* bg-linear-to-r from-info to-warning */
+.card-day-fill {
+  min-height: 4px;
+  border-radius: 2px;
+  background-image: linear-gradient(to right, var(--info), var(--warning));
+}
+
+/* ── weather card: settings face ──────────────────────────────────────── */
+
+.card-settings-label {
+  font-size: 11px;
+  color: alpha(#fafafa, 0.6);
+}
+
+.card-settings-entry {
+  font-size: 13px;
+  min-height: 0;
+  padding: 2px 8px;
+  background-color: alpha(#000000, 0.6);
+  border: 1px solid alpha(#fafafa, 0.15);
+  border-radius: 8px;
+}
+
+.card-settings-entry:focus-within {
+  border-color: alpha(#fafafa, 0.4);
+}
+
+.card-settings-button {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid alpha(#fafafa, 0.15);
+}
+
+.card-settings-button:hover {
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.card-settings-button.primary {
+  background-color: var(--primary);
+  color: var(--base-100);
+  border-color: transparent;
+}
+
+/* ── air quality card ─────────────────────────────────────────────────── */
+
+/* The scale the reading is placed on, painted as the ramp the bands come
+   from so the knob's position and its colour say the same thing. */
+.aqi-track {
+  border-radius: 4px;
+  background-image: linear-gradient(
+    to right,
+    var(--success),
+    var(--warning),
+    var(--error),
+    var(--accent)
+  );
+}
+
+/* h-3.5 w-3.5 rounded-full border-2 border-base-100 bg-base-content */
+.aqi-knob {
+  border-radius: 7px;
+  background-color: var(--base-content);
+  border: 2px solid var(--base-100);
+}
+
+.aqi-bar-track {
+  border-radius: 3px;
+  background-color: alpha(#fafafa, 0.15);
+}
+
+/* The webview mixed a colour per reading with color-mix(). GTK CSS cannot
+   compute a colour, so the ramp is the four bands it was built from and the
+   class carries which one a reading fell in. */
+.aqi-bar {
+  border-radius: 3px;
+}
+
+.aqi-bar.good { background-color: var(--success); }
+.aqi-bar.fair { background-color: var(--warning); }
+.aqi-bar.poor { background-color: var(--error); }
+.aqi-bar.severe { background-color: var(--accent); }
+
+/* A level bar draws the share the pollutant rows used a percentage width for.
+   Its trough and block are GTK's own nodes, so the colour goes on those. */
+.aqi-level trough {
+  min-height: 4px;
+  border-radius: 2px;
+  background-color: alpha(#fafafa, 0.15);
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+.aqi-level block.filled {
+  min-height: 4px;
+  border-radius: 2px;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+}
+
+.aqi-level.good block.filled { background-color: var(--success); }
+.aqi-level.fair block.filled { background-color: var(--warning); }
+.aqi-level.poor block.filled { background-color: var(--error); }
+.aqi-level.severe block.filled { background-color: var(--accent); }
+
+.aqi-level block.empty {
+  min-height: 4px;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+}

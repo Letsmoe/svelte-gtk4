@@ -1,0 +1,6 @@
+{
+  "id": "bluetooth",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts"
+}

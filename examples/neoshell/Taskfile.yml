@@ -1,0 +1,160 @@
+# Taskfile for neoshell. Requires go-task (https://taskfile.dev).
+#
+#   task run     run the TS host (spawns the render host, mounts extensions)
+#   task dev     the same against a vite dev server: a saved view is hot
+#                replaced in place, extension backends remount, and the host
+#                restarts on its own edits
+#   task build   compile the render host, daemons, and the notifications bridge
+#
+# The host spawns the render host, so the render host must be built first.
+# Binary paths are absolute (via ROOT_DIR) so they resolve regardless of the
+# task's working directory.
+version: "3"
+
+vars:
+  # C++/WPE render host (built by `make` in apps/render-host/).
+  RENDER_BIN: '{{.ROOT_DIR}}/apps/render-host/neoshell-render'
+  # neoshell-bg wallpaper daemon. Release for fast image scaling.
+  BG_BIN: '{{.ROOT_DIR}}/apps/bg/target/release/neoshell-bg'
+  # Wallpaper image to set, e.g. `task wallpaper WALLPAPER=~/pic.png`.
+  WALLPAPER: '{{.WALLPAPER | default ""}}'
+
+env:
+  # HTTP/WebSocket port for the host.
+  NEOSHELL_HOST_PORT: '{{.NEOSHELL_HOST_PORT | default "9877"}}'
+  # Extensions directory: each <id>/manifest.json declares a backend module
+  # and/or a views module; <id>/dist is served at /plugins/<id>/.
+  NEOSHELL_EXTENSIONS: '{{.ROOT_DIR}}/apps/extensions'
+  # Point the host at the render host built by render:build.
+  NEOSHELL_RENDER_BIN: '{{.RENDER_BIN}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  install:
+    desc: Install workspace dependencies (bun)
+    cmds:
+      - bun install
+
+  render:build:
+    desc: Build the C++/WPE render host (make)
+    dir: apps/render-host
+    cmds:
+      - make
+
+  notifyd:build:
+    desc: Build the notifications D-Bus bridge (Go)
+    dir: apps/extensions/notifications/daemon
+    cmds:
+      - go build -o neoshell-notifyd .
+
+  trayd:build:
+    desc: Build the StatusNotifierItem tray bridge (Go)
+    dir: apps/extensions/systray/daemon
+    cmds:
+      - go build -o neoshell-trayd .
+
+  views:build:
+    desc: Build the neoshell default views (Svelte + Tailwind → dist)
+    dir: apps/extensions
+    cmds:
+      - bun run build:views
+
+  bg:build:
+    desc: Build the neoshell-bg wallpaper daemon (release)
+    dir: apps/bg
+    cmds:
+      - cargo build --release
+
+  settings:build:
+    desc: Build the neoshell-settings app (Tauri; first build is slow — webkit2gtk)
+    dir: apps/settings
+    cmds:
+      - cargo build --release
+
+  build:
+    desc: Build the render host, daemons, the D-Bus bridges, and the views
+    deps: [render:build, bg:build, notifyd:build, trayd:build, views:build]
+
+  run:
+    desc: Run the host (spawns the render host, mounts extensions and views)
+    deps: [render:build, notifyd:build, trayd:build, views:build]
+    dir: apps/host
+    cmds:
+      - bun src/main.ts
+
+  dev:
+    desc: Run the host against the views dev server (HMR on save, host restarts on its own changes)
+    deps: [render:build, notifyd:build, trayd:build]
+    cmds:
+      - bun scripts/dev.ts
+
+  views:dev:
+    desc: Serve the views from source with HMR (started by `task dev`)
+    dir: apps/extensions
+    cmds:
+      - bun run dev:views
+
+  host:headless:
+    desc: Run the host without the render host (tests, remote development)
+    dir: apps/host
+    env:
+      NEOSHELL_HOST_RENDER: "0"
+    cmds:
+      - bun src/main.ts
+
+  emit:
+    desc: Publish one message on the running host's bus — task emit -- <topic> [payload]
+    dir: apps/host
+    cmds:
+      - bun src/emit.ts {{.CLI_ARGS}}
+
+  lint:
+    desc: Lint TS/JS with oxlint and Svelte markup with ESLint
+    cmds:
+      - bun run lint
+
+  lint:fix:
+    desc: Apply oxlint and ESLint autofixes
+    cmds:
+      - bun run lint:fix
+
+  test:
+    desc: Run every test suite (host, surface, extensions, views check)
+    cmds:
+      - cd apps/host && bun test
+      - cd packages/surface && bun test
+      - cd apps/extensions && bun test
+      - cd apps/extensions && bun run check:views
+
+  bg:
+    desc: Run the wallpaper daemon (optionally WALLPAPER=path to set on start)
+    deps: [bg:build]
+    cmds:
+      - "{{.BG_BIN}} daemon {{.WALLPAPER}}"
+
+  wallpaper:
+    desc: Set the wallpaper on a running daemon — task wallpaper WALLPAPER=~/pic.png
+    deps: [bg:build]
+    preconditions:
+      - sh: test -n "{{.WALLPAPER}}"
+        msg: "set WALLPAPER, e.g. task wallpaper WALLPAPER=~/pic.png"
+    cmds:
+      - "{{.BG_BIN}} img {{.WALLPAPER}}"
+
+  monitors:
+    desc: List monitor connectors
+    cmds:
+      - hyprctl monitors -j | jq -r '.[].name'
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - cd apps/render-host && make clean
+      - cd apps/bg && cargo clean
+      - cd apps/settings && cargo clean
+      - rm -f apps/extensions/notifications/daemon/neoshell-notifyd
+      - rm -f apps/extensions/systray/daemon/neoshell-trayd

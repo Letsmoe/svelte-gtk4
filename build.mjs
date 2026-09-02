@@ -6,13 +6,30 @@ import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
-import { compile, preprocess } from "svelte/compiler";
+import { compile, compileModule, preprocess } from "svelte/compiler";
 
 const here = (path) => fileURLToPath(new URL(path, import.meta.url));
 
 const sveltePlugin = {
   name: "svelte",
   setup(build) {
+    // A `.svelte.ts` module is ordinary TypeScript that may use runes, so it is
+    // stripped of its types and then run through the compiler's module half —
+    // the markup compiler would reject it as a component.
+    build.onLoad({ filter: /\.svelte\.[jt]s$/ }, async (args) => {
+      const source = await readFile(args.path, "utf8");
+      const { code } = await transpileScript({
+        content: source,
+        attributes: { lang: "ts" },
+      });
+      const { js } = compileModule(code, {
+        filename: args.path,
+        generate: "client",
+        dev: false,
+      });
+      return { contents: js.code, loader: "js" };
+    });
+
     build.onLoad({ filter: /\.svelte$/ }, async (args) => {
       const source = await readFile(args.path, "utf8");
       const processed = await preprocess(

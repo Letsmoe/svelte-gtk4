@@ -1,0 +1,6 @@
+{
+  "id": "media",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts"
+}

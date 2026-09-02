@@ -74,9 +74,15 @@
   };
 
   // GTK has no percentage widths, so fills are sized against the island's
-  // known content width rather than their parent.
-  const PROGRESS_TRACK_WIDTH = 380 - 32;
-  const SCRUB_TRACK_WIDTH = 380 - 32 - 2 * 38 - 20;
+  // known content width rather than their parent. Both mirror .island-expanded
+  // and .scrub-time in the stylesheet.
+  const ISLAND_PADDING = 16;
+  const SCRUB_TIME_WIDTH = 48;
+  const SCRUB_ROW_SPACING = 10;
+
+  const PROGRESS_TRACK_WIDTH = 380 - 2 * ISLAND_PADDING;
+  const SCRUB_TRACK_WIDTH = PROGRESS_TRACK_WIDTH -
+    2 * (SCRUB_TIME_WIDTH + SCRUB_ROW_SPACING);
 
   // Without a host there are no producers, so the island would sit empty. This
   // mirrors the demo workspaces the bar falls back to.
@@ -478,12 +484,20 @@
 <gtkbox overlay orientation="horizontal" valign="start" halign="center">
   <gtkbox class="notch-fillet-left" valign="start" />
 
+  <!-- Everything inside is an overlay child, which GTK does not measure: the
+       island's size is the transition's alone, so opening animates instead of
+       snapping to the content and then crawling the last few pixels. The
+       content keeps its natural size at the top edge throughout and the
+       growing island wipes it into view. -->
   <gtkoverlay
     class="island"
     input
+    clip
     css="min-width: {size.width}px; min-height: {size.height}px;"
   >
     <gtkpressable
+      overlay
+      valign="start"
       orientation="vertical"
       onhoverstart={() => (hovered = true)}
       onhoverend={() => (hovered = false)}
@@ -531,7 +545,11 @@
 {#snippet plainHeader(entry: IslandEntry)}
   <gtkbox orientation="horizontal" spacing={10} hexpand>
     <gtkbox class="tone-dot {toneClass(entry)}" valign="center" />
-    <gtklabel class="island-label" hexpand halign="start">{entry.label}</gtklabel>
+    <!-- The island no longer measures its content, so an over-long title has to
+         end itself rather than run off under the clip. -->
+    <gtklabel class="island-label" hexpand halign="start" ellipsize="end">
+      {entry.label}
+    </gtklabel>
     {#if entry.detail !== "" && !mode.startsWith("expanded")}
       <gtklabel class="island-detail" tabular>{entry.detail}</gtklabel>
     {/if}
@@ -543,19 +561,22 @@
 {#snippet mediaHeader(entry: IslandEntry, large: boolean)}
   <gtkbox orientation="horizontal" spacing={12} hexpand>
     <gtkbox
-      class={large ? "island-art-large" : "island-art-small"}
+      class="island-art {large ? 'island-art-large' : 'island-art-small'}"
       css={artCss(entry.art)}
       valign="center"
     />
     <gtkbox orientation="vertical" spacing={4} hexpand valign="center">
       <gtklabel
-        class={large ? "island-title-large" : "island-title"}
+        class="island-title {large ? 'island-title-large' : ''}"
         halign="start"
+        ellipsize="end"
       >
         {entry.label}
       </gtklabel>
+      <!-- The only part of the header that appears rather than grows, so it
+           fades in over the same 260ms the rest spends resizing. -->
       {#if large && entry.detail !== ""}
-        <gtklabel class="island-subtitle" halign="start">
+        <gtklabel class="island-subtitle" halign="start" ellipsize="end">
           {entry.detail}
         </gtklabel>
       {/if}
@@ -582,13 +603,7 @@
 {/snippet}
 
 {#snippet expandedDetail(entry: IslandEntry)}
-  <gtkbox
-    orientation="vertical"
-    spacing={4}
-    class="island-expanded"
-    vexpand
-    valign="end"
-  >
+  <gtkbox orientation="vertical" spacing={4} class="island-expanded">
     {#if entry.detail !== ""}
       <gtklabel class="island-expanded-detail" halign="start">
         {entry.detail}
@@ -623,20 +638,25 @@
   </gtkbox>
 {/snippet}
 
-<!-- Three columns so the transport group sits on the island's centre line with
-     shuffle pinned left; the mirrored right column stays empty. -->
+<!-- A CenterBox, not two expanding columns: a Box splits its slack evenly
+     between them, so the shuffle button's own width pushed the transport group
+     half its width off the centre line and out of line with the scrub track. -->
 {#snippet transport()}
-  <gtkbox orientation="horizontal" hexpand>
-    <gtkbox orientation="horizontal" hexpand halign="start">
+  <gtkcenterbox orientation="horizontal">
+    <gtkbox
+      place="start"
+      orientation="horizontal"
+      halign="start"
+      valign="center"
+    >
       {@render control(ICONS.shuffle, 20, media.shuffle, "media:shuffle")}
     </gtkbox>
-    <gtkbox orientation="horizontal" spacing={24}>
+    <gtkbox place="center" orientation="horizontal" spacing={24}>
       {@render control(ICONS.previous, 22, false, "media:previous")}
       {@render control(playPauseIcon(media), 26, false, "media:playPause")}
       {@render control(ICONS.next, 22, false, "media:next")}
     </gtkbox>
-    <gtkbox hexpand />
-  </gtkbox>
+  </gtkcenterbox>
 {/snippet}
 
 {#snippet control(icon: string, pixels: number, active: boolean, action: string)}

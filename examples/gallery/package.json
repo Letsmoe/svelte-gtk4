@@ -1,0 +1,11 @@
+{
+  "name": "svelte-gtk4-gallery-example",
+  "private": true,
+  "type": "module",
+  "description": "One of every tag in the registry. Resolves svelte and esbuild from the repository root rather than installing its own.",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && ./run.sh",
+    "smoke": "node build.mjs && GALLERY_EXIT_AFTER=2000 gjs -m dist/gallery.js"
+  }
+}

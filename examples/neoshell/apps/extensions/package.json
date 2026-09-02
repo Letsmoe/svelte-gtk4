@@ -1,0 +1,28 @@
+{
+  "name": "@neoshell/extensions",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "dev:views": "vite --config vite.dev.config.ts",
+    "build:views": "vite build neoshell && vite build weather && vite build airquality && vite build quicksettings && vite build systray && vite build deskminder && vite build vpn",
+    "check:views": "svelte-check --tsconfig ./tsconfig.json --workspace neoshell && svelte-check --tsconfig ./tsconfig.json --workspace weather && svelte-check --tsconfig ./tsconfig.json --workspace airquality && svelte-check --tsconfig ./tsconfig.json --workspace quicksettings && svelte-check --tsconfig ./tsconfig.json --workspace systray && svelte-check --tsconfig ./tsconfig.json --workspace deskminder && svelte-check --tsconfig ./tsconfig.json --workspace vpn"
+  },
+  "dependencies": {
+    "@neoworks/extension-system": "link:@neoworks/extension-system",
+    "phosphor-svelte": "^3.1.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/bun": "latest",
+    "daisyui": "^5.7.19",
+    "svelte": "^5.56.9",
+    "svelte-check": "^4.7.6",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2"
+  }
+}

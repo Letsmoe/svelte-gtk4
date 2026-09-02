@@ -1,0 +1,62 @@
+/* Shared views theme: DaisyUI with the neoworks palette, imported by every
+   extension that ships a views bundle. The tokens mirror
+   @neoworks-dev/ui/style/main.css (the design system's source of truth); the
+   Geist fonts are omitted until the host serves font assets.
+
+   Each extension keeps its own `@import "tailwindcss"` so Tailwind scans that
+   extension's own components for utilities. */
+
+@plugin "daisyui" {
+  themes: neoworks --default;
+}
+
+@plugin "daisyui/theme" {
+  name: "neoworks";
+  default: true;
+  color-scheme: dark;
+
+  --color-base-100: #000000; /* canvas                  */
+  --color-base-200: #0b0b0d; /* elevated (sidebar, nav) */
+  --color-base-300: #141416; /* surface (cards)         */
+  --color-base-content: #fafafa;
+
+  --color-primary: #fafafa; /* white CTA               */
+  --color-primary-content: #0b0b0d;
+
+  --color-secondary: #1c1c1f;
+  --color-secondary-content: #a1a1aa;
+
+  --color-accent: #a78bfa; /* ctx-violet              */
+  --color-accent-content: #000000;
+
+  --color-neutral: #1c1c1f;
+  --color-neutral-content: #71717a;
+
+  --color-info: #60a5fa; /* ctx-blue                */
+  --color-info-content: #000000;
+  --color-success: #4ade80; /* ctx-green               */
+  --color-success-content: #000000;
+  --color-warning: #fbbf24; /* ctx-amber               */
+  --color-warning-content: #000000;
+  --color-error: #f87171; /* ctx-red                 */
+  --color-error-content: #000000;
+
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  /* DaisyUI multiplies these: a toggle is size-selector * 5..8, a range thumb
+     * 6, a button size-field * its size multiplier. They are step units, not
+     control heights — every built-in theme ships 0.25rem. */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Layer-shell surfaces are transparent overlays: only the drawn widgets carry
+   backgrounds, everything else shows the desktop through. */
+html,
+body {
+  background: transparent;
+}

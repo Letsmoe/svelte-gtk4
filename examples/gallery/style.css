@@ -1,0 +1,25 @@
+/* GTK CSS, not CSS: no width/height, no pseudo-elements, no overflow. */
+
+window {
+  background: #1d1f26;
+  color: #e6e8ef;
+}
+
+label {
+  color: #e6e8ef;
+}
+
+frame {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+listbox row {
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+listbox row:selected {
+  background: #3d5afe;
+}

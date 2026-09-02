@@ -1,0 +1,7 @@
+{
+  "id": "systray",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts",
+  "views": "views.js"
+}

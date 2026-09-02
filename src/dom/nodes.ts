@@ -76,6 +76,15 @@ export class SNode {
     return this.insertBefore(node, null);
   }
 
+  // A component whose template is nothing but anchors — one made only of
+  // control flow, like a list of windows — is built into a fragment the
+  // runtime fills through `append` rather than `appendChild`.
+  append(...nodes: SNode[]): void {
+    for (const node of nodes) {
+      this.insertBefore(node, null);
+    }
+  }
+
   insertBefore<T extends SNode>(node: T, ref: SNode | null): T {
     if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
       this.insertFragment(node, ref);
@@ -319,9 +328,9 @@ export class SElement extends SNode {
   readonly tagName: string;
   readonly attributes = new Map<string, unknown>();
 
-  // Filled in by the GTK backend. `widget` stays null for nodes parsed into a
-  // template, which are only ever cloned.
-  widget: any = null;
+  // Filled in by the GTK backend with the class that owns this tag's widget.
+  // Stays null for nodes parsed into a template, which are only ever cloned.
+  impl: any = null;
   slotName = "";
   cssClass = "";
   cssProvider: any = null;
@@ -335,6 +344,14 @@ export class SElement extends SNode {
       this.content = new SFragment();
     }
     backend.created(this);
+  }
+
+  /** The GTK widget behind this node, or null when it has none. */
+  get widget(): any {
+    if (this.impl === null) {
+      return null;
+    }
+    return this.impl.widget;
   }
 
   getAttribute(name: string): unknown {

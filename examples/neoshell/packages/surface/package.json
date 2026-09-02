@@ -1,0 +1,23 @@
+{
+  "name": "@neoshell/surface",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*.js": "./src/*.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@neoworks/extension-system": "link:@neoworks/extension-system"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@happy-dom/global-registrator": "^15"
+  }
+}

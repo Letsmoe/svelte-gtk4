@@ -1,0 +1,77 @@
+/* GTK4 CSS. Custom properties and var() need GTK >= 4.16; this machine has
+   4.22. The Tailwind classes from Topbar.svelte map to the rules below —
+   everything that survived is paint, everything that didn't was layout. */
+
+:root {
+  --base-200: rgb(30 32 38);
+  --base-content: rgb(226 228 233);
+  --warning: rgb(240 180 90);
+}
+
+/* bg-base-200/40 px-3 text-[13px] font-medium text-base-content */
+.topbar {
+  background-color: color-mix(in srgb, var(--base-200) 40%, transparent);
+  color: var(--base-content);
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* h-6 min-w-6 rounded-lg px-2 text-[11px] transition-colors duration-150.
+   No h-6: GTK CSS has no height, so min-height is the floor and the row's
+   valign keeps it from stretching. */
+.workspace {
+  min-height: 24px;
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  transition: background-color 150ms, color 150ms;
+}
+
+.workspace:hover {
+  background-color: color-mix(in srgb, var(--base-content) 10%, transparent);
+}
+
+/* bg-base-content/15 font-semibold text-base-content */
+.workspace.active {
+  background-color: color-mix(in srgb, var(--base-content) 15%, transparent);
+  color: var(--base-content);
+  font-weight: 600;
+}
+
+/* text-base-content/70 */
+.workspace.occupied {
+  color: color-mix(in srgb, var(--base-content) 70%, transparent);
+}
+
+/* text-base-content/25 */
+.workspace.empty {
+  color: color-mix(in srgb, var(--base-content) 25%, transparent);
+}
+
+/* bg-warning/20 font-semibold text-warning */
+.workspace.urgent {
+  background-color: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* rounded-lg px-2 py-0.5 tabular-nums hover:bg-base-content/10.
+   tabular-nums has no CSS equivalent in GTK — it is a Pango attribute, set on
+   the label in code if the digits jitter. */
+.clock {
+  padding: 2px 8px;
+  border-radius: 8px;
+  transition: background-color 150ms;
+}
+
+.clock:hover {
+  background-color: color-mix(in srgb, var(--base-content) 10%, transparent);
+}
+
+/* text-base-content/60 */
+.clock-date {
+  color: color-mix(in srgb, var(--base-content) 60%, transparent);
+}

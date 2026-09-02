@@ -1,0 +1,98 @@
+version: "3"
+
+vars:
+  # The only app in the repo today. Override to point the tasks at another
+  # example: `task bar EXAMPLE=foo`.
+  EXAMPLE: topbar
+
+env:
+  # gtk4-layer-shell has to be loaded before libwayland-client, which language
+  # bindings cannot guarantee through normal imports.
+  LD_PRELOAD: /usr/lib/libgtk4-layer-shell.so
+
+tasks:
+  default:
+    desc: List the available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  install:
+    desc: Install dependencies for the library and the example
+    cmds:
+      - bun install
+      - bun install --cwd examples/{{.EXAMPLE}}
+    sources:
+      - package.json
+      - bun.lock
+      - examples/{{.EXAMPLE}}/package.json
+      - examples/{{.EXAMPLE}}/bun.lock
+    generates:
+      - node_modules/.package-lock.json
+      - examples/{{.EXAMPLE}}/node_modules/.package-lock.json
+
+  build:
+    desc: Bundle the example into a single ESM file GJS can run
+    deps: [install]
+    dir: examples/{{.EXAMPLE}}
+    cmds:
+      - node build.mjs
+    sources:
+      - build.mjs
+      - src/**/*.{ts,svelte}
+      - ../../build.mjs
+      - ../../src/**/*.ts
+    generates:
+      - dist/{{.EXAMPLE}}.js
+
+  bar:
+    aliases: [run, start]
+    desc: Build and launch the bar
+    deps: [build]
+    dir: examples/{{.EXAMPLE}}
+    interactive: true
+    cmds:
+      - gjs -m dist/{{.EXAMPLE}}.js
+
+  smoke:
+    desc: Build every widget once and exit — catches GTK API mistakes typing cannot
+    deps: [install]
+    dir: examples/gallery
+    env:
+      GALLERY_EXIT_AFTER: 2000
+    cmds:
+      - node build.mjs
+      - gjs -m dist/gallery.js
+
+  neoshell:smoke:
+    desc: Build every neoshell view once in a plain window and exit
+    deps: [install]
+    dir: examples/neoshell
+    cmds:
+      - node smoke.mjs
+      - gjs -m dist/smoke.js
+
+  neoshell:
+    desc: Build and run the whole shell — takes over the session it runs in
+    deps: [install]
+    dir: examples/neoshell
+    interactive: true
+    cmds:
+      - node build.mjs
+      - gjs -m dist/neoshell.js
+
+  watch:
+    desc: Rebuild the bundle on every source change
+    cmds:
+      - task --watch build
+
+  typecheck:
+    desc: Type-check the library
+    deps: [install]
+    cmds:
+      - tsc --noEmit
+
+  clean:
+    desc: Remove build output
+    cmds:
+      - rm -rf examples/{{.EXAMPLE}}/dist

@@ -1,0 +1,26 @@
+{
+  "name": "@neoshell/ui",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./style/main.css": "./src/style/main.css",
+    "./style/surface.css": "./src/style/surface.css",
+    "./*.js": "./src/*.ts",
+    "./*": "./src/*"
+  },
+  "peerDependencies": {
+    "svelte": "^5",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@neoshell/sdk": "workspace:*",
+    "@fontsource/geist-mono": "^5.2.8",
+    "@fontsource/geist-sans": "^5.2.5",
+    "daisyui": "^5.6.3",
+    "tailwindcss": "^4.2.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

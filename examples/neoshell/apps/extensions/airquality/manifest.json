@@ -1,0 +1,17 @@
+{
+  "id": "airquality",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts",
+  "views": "views.js",
+  "widgets": [
+    {
+      "type": "airquality.card",
+      "name": "Air Quality",
+      "category": "Weather",
+      "description": "The air quality index, the next hours, and the pollutants behind it.",
+      "sizes": ["small", "medium", "large"],
+      "defaultSize": "small"
+    }
+  ]
+}

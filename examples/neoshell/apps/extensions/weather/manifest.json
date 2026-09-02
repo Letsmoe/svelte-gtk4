@@ -1,0 +1,17 @@
+{
+  "id": "weather",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts",
+  "views": "views.js",
+  "widgets": [
+    {
+      "type": "weather.card",
+      "name": "Weather",
+      "category": "Weather",
+      "description": "Current conditions, the next hours, and the coming days.",
+      "sizes": ["small", "medium", "large"],
+      "defaultSize": "small"
+    }
+  ]
+}

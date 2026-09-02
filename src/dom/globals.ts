@@ -69,8 +69,11 @@ function install(): void {
   };
 
   if (globals.queueMicrotask === undefined) {
+    // A throwing microtask must not become an unhandled rejection of the
+    // promise driving it: GJS reports those with only the main loop in the
+    // stack, which names neither the callback nor its error.
     globals.queueMicrotask = (fn: () => void) => {
-      Promise.resolve().then(fn);
+      void Promise.resolve().then(fn).catch(reportMicrotaskError);
     };
   }
   if (globals.requestAnimationFrame === undefined) {
@@ -96,6 +99,10 @@ function install(): void {
     dispatchEvent: () => true,
     getComputedStyle: () => ({ getPropertyValue: () => "" }),
   });
+}
+
+function reportMicrotaskError(error: unknown): void {
+  console.error("svelte-gtk4: microtask failed:", error);
 }
 
 function define(name: string, value: Record<string, unknown>): void {

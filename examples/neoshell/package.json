@@ -1,0 +1,28 @@
+{
+  "name": "svelte-gtk4-neoshell-example",
+  "private": true,
+  "type": "module",
+  "description": "neoshell as one GJS process: the kernel, the bus, the extension backends and every view rendered to GTK4 widgets.",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && ./run.sh",
+    "lint": "oxlint --type-aware; a=$?; eslint .; b=$?; exit $((a | b))",
+    "lint:fix": "oxlint --type-aware --fix; eslint . --fix"
+  },
+  "dependencies": {
+    "@neoworks/extension-system": "link:@neoworks/extension-system"
+  },
+  "devDependencies": {
+    "@neoworks/lint-config": "link:@neoworks/lint-config",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-svelte": "^3.23.0",
+    "gjs-esm-types": "^0.0.4",
+    "oxlint": "^1.80.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "svelte": "^5.57.0",
+    "svelte-eslint-parser": "^1.8.1",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.68.0"
+  }
+}

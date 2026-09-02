@@ -1,0 +1,10 @@
+/* Shell surface reset. Layer-shell surfaces are transparent overlays: the render
+   host paints the WPE webview with a zero-alpha background so unpainted areas show
+   the wallpaper/compositor through. The design system's opaque canvas (main.css
+   sets `body { background-color: var(--bg) }`, black) would cover the whole screen,
+   so surfaces import this after main.css to restore transparency. Only the drawn
+   widgets (notch, dock, palette, windows) carry their own backgrounds. */
+html,
+body {
+  background: transparent;
+}

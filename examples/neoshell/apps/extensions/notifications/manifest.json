@@ -1,0 +1,6 @@
+{
+  "id": "notifications",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts"
+}

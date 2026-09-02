@@ -1,0 +1,6 @@
+{
+  "id": "files",
+  "inject": ["bus"],
+  "provides": [],
+  "backend": "./backend.ts"
+}
