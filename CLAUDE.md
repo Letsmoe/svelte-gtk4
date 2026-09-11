@@ -122,6 +122,13 @@ Deliberately **not** wrapped:
   own rubber band.
 - **Press and drag details carry `state`**, the Gdk modifier mask, so a view
   can tell ctrl-click from click without a key controller.
+- **A window that draws nothing never commits.** GDK attaches no buffer for
+  an empty render tree, so a layer window whose content is a zero-size marker
+  on a `transparent` background is never mapped; every buffer-less commit
+  after a configure makes the compositor configure it again (a ~60 Hz
+  configure/ack storm), and a window that *was* showing something keeps
+  showing it — with its old input region — after the content is removed.
+  Give every window a 1% alpha background (neoshell's `window` rule).
 - **An input region lands one commit late.** `set_input_region` is applied on
   the surface's next commit, and `inputRegion.ts` computes it in `after-paint`,
   after GDK has committed that frame — so it queues one more draw. Without it

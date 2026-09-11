@@ -37,9 +37,14 @@
 }
 
 /* A layer surface has to be see-through, or the theme's opaque window
-   background paints over everything the shell draws. */
+   background paints over everything the shell draws — but not `transparent`.
+   A window whose whole render tree draws nothing never attaches a buffer: it
+   is never mapped, its input region never reaches the compositor, and if it
+   was showing something before it keeps showing it. A closed tray or gallery
+   is exactly that window. One hundredth of an alpha is a real paint and still
+   invisible; the blur rules ignore anything under 0.1. */
 window {
-  background-color: transparent;
+  background-color: alpha(#000000, 0.01);
   color: var(--base-content);
   font-size: 13px;
 }
