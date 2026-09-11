@@ -554,7 +554,7 @@ button.control-idle { color: alpha(#fafafa, 0.85); }
    backdrop-blur — the blur is the compositor's, asked for by the node, so the
    surface is translucent enough to show it. */
 .panel {
-  background-color: alpha(#0b0b0d, 0.78);
+  background-color: alpha(#0b0b0d, 0.86);
   border: 1px solid alpha(#fafafa, 0.12);
   border-radius: 24px;
   padding: 10px;
@@ -659,7 +659,14 @@ button.qs-tile-open:hover {
 
 /* The slider was a range input whose track carried the fill as a gradient. A
    Gtk.Scale has the parts already: the trough is the pill, the highlight is
-   the fill, and the handle is collapsed so the fill's edge reads as one. */
+   the fill, and the handle is collapsed so the fill's edge reads as one. The
+   theme pads a scale by 12px on every side; without dropping that the pill
+   starts inside the icon's box and the icon sits on its edge. */
+scale.qs-slider {
+  padding: 0;
+  min-height: 32px;
+}
+
 .qs-slider trough {
   min-height: 32px;
   border-radius: 16px;
