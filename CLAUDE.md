@@ -104,13 +104,45 @@ Deliberately **not** wrapped:
 - `LayerShell.init_for_window` must run before the window is realized, exactly
   once.
 
+## Gotchas found at runtime
+
+- **The theme wins on specificity, not on provider priority.** The app
+  stylesheet loads at `STYLE_PROVIDER_PRIORITY_APPLICATION`, but a theme rule
+  with a more specific selector still beats it: `button.text-button`
+  (16px side padding) out-specifies `.workspace`. When a class rule does not
+  take, put the element in the selector — `button.workspace`.
+- **Layer surfaces are permanently `:backdrop`.** They never hold focus, so
+  the theme's `button:backdrop { color: … }` greys every button label on a
+  bar or tray. Pin `color` on buttons explicitly (see the reset at the top of
+  `examples/neoshell/style.css`).
+- **`GestureClick` and `GestureDrag` both see the same release.** A `press`
+  handler (`released`) fires on the release that ends a drag, in controller
+  connection order — which is attribute order in the template. A view that
+  clears a selection on press has to guard against the release that ends its
+  own rubber band.
+- **Press and drag details carry `state`**, the Gdk modifier mask, so a view
+  can tell ctrl-click from click without a key controller.
+- **Nothing dismisses a layer window from outside it.** A tray that should
+  close on click-away has to span the output and put a near-transparent
+  `input` backdrop under its panel (`.menu-backdrop` pattern); a closed tray
+  keeps a zero-size `input` marker so the surface stays click-through.
+- **Widget margins are not animatable and the `css` attribute is not for
+  per-frame use** — every change builds a new `CssProvider` for the whole
+  display. Drive a glide with `widget.add_tick_callback` and set the margin
+  each frame (`examples/neoshell/src/extensions/neoshell/glide.ts`).
+- **A drag on a moving widget needs origin compensation** — `events.ts`
+  already adds the widget's own travel back into `dx`/`dy`, so a view may
+  move the dragged widget freely.
+
 ## Commands
 
 ```
-task build      # bundle examples/topbar
-task bar        # build and run it
-task smoke      # build every widget once and exit
-task typecheck  # tsc --noEmit
+task build           # bundle examples/topbar
+task bar             # build and run it
+task smoke           # build every widget once and exit
+task typecheck       # tsc --noEmit
+task neoshell        # build and run the shell — takes over the session
+task neoshell:smoke  # build every neoshell view in a plain window, exit after 2s
 ```
 
 `task smoke` is the one that matters when touching `src/gtk/widgets/`.

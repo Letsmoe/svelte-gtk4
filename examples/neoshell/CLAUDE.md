@@ -1,3 +1,36 @@
+## Working on the shell
+
+This is the GTK build: one GJS process, Svelte components compiled to GTK4
+widgets through `@neoworks/svelte-gtk4` (the repository root), one
+gtk4-layer-shell window per top-level view-tree node. `ARCHITECTURE.md`,
+`README.md` and `Taskfile.yml` here still describe the earlier webview/bun
+build and are out of date; `apps/` and `packages/` are that build's remains.
+
+- **Entry points.** `src/main.ts` boots kernel + bus + `Shell.svelte`;
+  `src/host/plugins/viewTree.ts` holds the default view tree (the user's
+  `~/.config/neoshell/config.json` has no `views` key, so this is what runs).
+  Views live in `src/extensions/<id>/`, styles in `style.css` (GTK CSS, see
+  the root `CLAUDE.md` for what GTK CSS lacks and how the cascade behaves).
+- **Verify with**, from the repository root: `task typecheck`, then in this
+  directory `node build.mjs` and `task neoshell:smoke` (builds every view in
+  a plain window and exits). `bun run lint` has a pre-existing baseline of
+  ~60 errors in the old `apps/`/`packages/` trees and a few `Set`-reactivity
+  nits; only new findings in files you touched count.
+- **The shell is running in the user's session** (`task neoshell` under
+  go-task). Do not restart it or take screenshots yourself — ask the user to
+  capture what you need to see, and tell them when a rebuild is needed for a
+  change to show.
+- **Desktop interaction model** (`src/extensions/neoshell/`): Finder-like.
+  A press on an icon selects on mouse-down; a drag carries translucent ghosts
+  that track the pointer 1:1 while the originals stay; only the drop is
+  snapped (`freeform.ts` — screen edges and neighbours' edges), then the
+  icons glide into place (`glide.ts`). Rubber band on the background,
+  ctrl-click toggles. Widgets lift on grab, show a filled placeholder at the
+  landing, and glide there or back if the spot is taken.
+- **Quick settings** is a full-output `top` window: a transparent `input`
+  backdrop dismisses it on click-away; the panel hangs at
+  `args.offsetTop`/`args.offsetEnd`.
+
 ## Style
 
 Neoworks uses a shared design system defined in the `@neoworks-dev/ui`
