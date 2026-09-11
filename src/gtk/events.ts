@@ -78,6 +78,8 @@ function addPressListener(
       // How many clicks this one is part of: 2 is a double click, which a
       // desktop needs to tell "select" from "open".
       count,
+      // The modifier mask at release, so ctrl-click can extend a selection.
+      state: gesture.get_current_event_state(),
       width: node.widget.get_width(),
       height: node.widget.get_height(),
     });
@@ -115,8 +117,8 @@ function addDragListener(
 ): void {
   const drag = dragGesture(node);
   if (type === "dragstart") {
-    drag.connect("drag-begin", (_gesture, x, y) =>
-      fire(node, type, handler, dragDetail(node, x, y, 0, 0)),
+    drag.connect("drag-begin", (gesture, x, y) =>
+      fire(node, type, handler, dragDetail(node, gesture, x, y, 0, 0)),
     );
     return;
   }
@@ -127,7 +129,12 @@ function addDragListener(
       return;
     }
     const shift = originShift(node);
-    fire(node, type, handler, dragDetail(node, x, y, dx + shift.x, dy + shift.y));
+    fire(
+      node,
+      type,
+      handler,
+      dragDetail(node, gesture, x, y, dx + shift.x, dy + shift.y),
+    );
   });
 }
 
@@ -186,6 +193,7 @@ function pointDetail(node: SElement, x: number, y: number): unknown {
 
 function dragDetail(
   node: SElement,
+  gesture: Gtk.Gesture,
   x: number,
   y: number,
   dx: number,
@@ -198,6 +206,7 @@ function dragDetail(
     dy,
     x: x + dx,
     y: y + dy,
+    state: gesture.get_current_event_state(),
     width: node.widget.get_width(),
     height: node.widget.get_height(),
   };
