@@ -7,6 +7,7 @@
   import WidgetGallery from './extensions/neoshell/WidgetGallery.svelte'
   import Weather from './extensions/weather/Weather.svelte'
   import AirQuality from './extensions/airquality/AirQuality.svelte'
+  import LockSurface from './extensions/lock/LockSurface.svelte'
   import { MAX_UNIT_PX, sizePx, spanOf } from './extensions/neoshell/freeform'
   import type { BluetoothState, NetworkState } from './extensions/quicksettings/types'
 
@@ -124,6 +125,11 @@
           </gtkbox>
         </gtkbox>
       {/each}
+      <!-- One monitor's lock surface, in a box instead of a session-lock
+           window: the compositor lock is what the smoke must never take. -->
+      <gtkbox width={960} height={540}>
+        <LockSurface {bus} {registry} onunlock={() => {}} />
+      </gtkbox>
     </gtkbox>
   </gtkscrolledwindow>
 </gtkwindow>

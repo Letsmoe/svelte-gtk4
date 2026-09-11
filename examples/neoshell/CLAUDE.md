@@ -27,6 +27,28 @@ build and are out of date; `apps/` and `packages/` are that build's remains.
   icons glide into place (`glide.ts`). Rubber band on the background,
   ctrl-click toggles. Widgets lift on grab, show a filled placeholder at the
   landing, and glide there or back if the spot is taken.
+- **Live wallpaper.** A video path in `appearance.wallpaper` (mp4, m4v, webm,
+  mkv, mov, avi) plays looped and muted through `livePlayer.ts`; the rules
+  are pure functions in `liveWallpaper.ts`. `appearance.liveWallpaper`
+  takes `speed` (0.1–8, default 1), `pauseOnFullscreen` (default true —
+  any monitor's visible workspace has `hasfullscreen`) and `pauseOnBattery`
+  (default false — `system.battery.status === "Discharging"`). Speed needs
+  `gst-plugin-gtk4` installed; without it the `Gtk.MediaFile` fallback plays
+  at 1x and warns once.
+- **Lock screen** (`src/extensions/lock/`). `backend.ts` owns the retained
+  `lock.state {locked}`, answers `lock:lock` / `lock:unlock`, and follows
+  logind's Lock/Unlock on this session (resolved through
+  `/org/freedesktop/login1/session/auto`, which also works when the shell
+  runs outside a session cgroup) so `loginctl lock-session` and hypridle
+  work unchanged. `LockScreen.svelte` is a *detached* tree node
+  (`args.detached`, no window of its own): while locked it holds a
+  `Gtk4SessionLock.Instance` and renders one `gtkwindow lock={…}` per
+  monitor; the windows leave on the `unlocked` signal, never before.
+  `LockSurface.svelte` is one monitor's content and is what the smoke builds.
+  Auth is `unix_chkpwd` (`auth.ts`) — /etc/shadow only, no PAM stack.
+  **Never trigger a lock from a test or smoke**: a broken locker traps the
+  session. Set `misc:allow_session_lock_restore = true` in Hyprland so a
+  crashed locker can be replaced.
 - **Quick settings** is a full-output `top` window: a transparent `input`
   backdrop dismisses it on click-away; the panel hangs at
   `args.offsetTop`/`args.offsetEnd`.

@@ -108,6 +108,22 @@ Deliberately **not** wrapped:
   cast that was wrong.
 - `LayerShell.init_for_window` must run before the window is realized, exactly
   once.
+- **Session lock ships inside gtk4-layer-shell ≥ 1.3** (`Gtk4SessionLock-1.0`,
+  same `.so`, so the existing preload covers it; typed by hand in `gi.d.ts`).
+  A lock window is `assign_window_to_monitor`ed while unrealized — the root's
+  deferred present makes the `lock={{ instance, monitor }}` attribute early
+  enough — and the library destroys it at unlock; hiding or destroying one
+  while the lock is held is a Wayland protocol error. `gtk_window_destroy`
+  on an already destroyed toplevel is a no-op, so the root's own destroy on
+  removal is harmless as long as removal follows the `unlocked` signal.
+- **`gjs-esm-types` has no GStreamer.** `gi.d.ts` declares the slice
+  `livePlayer.ts` uses by hand. `Gtk.MediaFile` (builtin gst backend in
+  GTK ≥ 4.16) plays, loops and mutes but exposes no playback rate; rate needs
+  a `playbin` driving `gtk4paintablesink` (package `gst-plugin-gtk4`, not
+  installed by default) and a seek with the rate as its first argument. A
+  `SEGMENT` seek plus a re-seek on `SEGMENT_DONE` is a gapless loop; `EOS`
+  only arrives when that did not take. `playbin` `flags` is set as a plain
+  int (`1 | 512` = VIDEO|DEINTERLACE, no audio decode).
 
 ## Gotchas found at runtime
 

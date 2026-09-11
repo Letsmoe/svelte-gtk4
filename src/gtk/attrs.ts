@@ -83,6 +83,14 @@ export function asStrings(value: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
+/** A non-null object from an expression, for attributes that take a GObject. */
+export function asObject<T extends object>(value: unknown): T | null {
+  if (typeof value === "object" && value !== null) {
+    return value as T;
+  }
+  return null;
+}
+
 export function asFunction(value: unknown): ((...args: any[]) => any) | null {
   if (typeof value === "function") {
     return value as (...args: any[]) => any;

@@ -71,3 +71,135 @@ declare module "gi://Gtk4LayerShell" {
   import LayerShell from "gi://Gtk4LayerShell?version=1.0";
   export default LayerShell;
 }
+
+// gjs-esm-types ships no GStreamer typings. This is the slice neoshell's live
+// wallpaper uses, typed by hand against the 1.0 GIR.
+declare module "gi://Gst?version=1.0" {
+  import type GObject from "gi://GObject?version=2.0";
+
+  namespace Gst {
+    const CLOCK_TIME_NONE: number;
+
+    enum State {
+      VOID_PENDING,
+      NULL,
+      READY,
+      PAUSED,
+      PLAYING,
+    }
+
+    enum Format {
+      UNDEFINED,
+      DEFAULT,
+      BYTES,
+      TIME,
+      BUFFERS,
+      PERCENT,
+    }
+
+    enum SeekType {
+      NONE,
+      SET,
+      END,
+    }
+
+    enum SeekFlags {
+      NONE = 0,
+      FLUSH = 1,
+      ACCURATE = 2,
+      KEY_UNIT = 4,
+      SEGMENT = 8,
+      TRICKMODE = 16,
+    }
+
+    enum MessageType {
+      EOS = 1,
+      ERROR = 2,
+      WARNING = 4,
+      SEGMENT_DONE = 1 << 10,
+      ASYNC_DONE = 1 << 17,
+    }
+
+    enum StateChangeReturn {
+      FAILURE,
+      SUCCESS,
+      ASYNC,
+      NO_PREROLL,
+    }
+
+    class Message {
+      readonly type: MessageType;
+      readonly src: GObject.Object | null;
+      parse_error(): [Error, string];
+    }
+
+    class Bus extends GObject.Object {
+      add_signal_watch(): void;
+      remove_signal_watch(): void;
+      connect(signal: string, handler: (bus: Bus, message: Message) => void): number;
+      disconnect(id: number): void;
+    }
+
+    class Element extends GObject.Object {
+      set_property(name: string, value: unknown): void;
+      get_property<T = unknown>(name: string): T;
+      set_state(state: State): StateChangeReturn;
+      get_bus(): Bus | null;
+      seek(
+        rate: number,
+        format: Format,
+        flags: number,
+        startType: SeekType,
+        start: number,
+        stopType: SeekType,
+        stop: number,
+      ): boolean;
+      query_position(format: Format): [boolean, number];
+    }
+
+    namespace ElementFactory {
+      function make(factoryName: string, name: string | null): Element | null;
+      function find(factoryName: string): GObject.Object | null;
+    }
+
+    function init(argv: string[] | null): void;
+    function is_initialized(): boolean;
+    function filename_to_uri(filename: string): string;
+  }
+
+  export default Gst;
+}
+
+declare module "gi://Gst" {
+  import Gst from "gi://Gst?version=1.0";
+  export default Gst;
+}
+
+// gtk4-layer-shell ≥ 1.3 ships the session-lock half in the same library, so
+// the LD_PRELOAD that loads the layer shell loads this too.
+declare module "gi://Gtk4SessionLock?version=1.0" {
+  import type Gdk from "gi://Gdk?version=4.0";
+  import type GObject from "gi://GObject?version=2.0";
+  import type Gtk from "gi://Gtk?version=4.0";
+
+  namespace SessionLock {
+    class Instance extends GObject.Object {
+      constructor();
+      lock(): boolean;
+      unlock(): void;
+      is_locked(): boolean;
+      assign_window_to_monitor(window: Gtk.Window, monitor: Gdk.Monitor): void;
+      connect(signal: "locked" | "failed" | "unlocked", handler: () => void): number;
+      connect(signal: "monitor", handler: (self: Instance, monitor: Gdk.Monitor) => void): number;
+      disconnect(id: number): void;
+    }
+    function is_supported(): boolean;
+  }
+
+  export default SessionLock;
+}
+
+declare module "gi://Gtk4SessionLock" {
+  import SessionLock from "gi://Gtk4SessionLock?version=1.0";
+  export default SessionLock;
+}

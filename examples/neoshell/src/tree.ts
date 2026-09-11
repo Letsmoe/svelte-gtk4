@@ -70,6 +70,13 @@ export function namespaceOf(node: TreeNode): string {
   return `neoshell.${id}`
 }
 
+// A detached node renders no window of its own: its view creates and owns
+// whatever toplevels it needs — the lock screen, which puts a session-lock
+// surface on every monitor and none while the session is unlocked.
+export function isDetached(args: Record<string, unknown>): boolean {
+  return args.detached === true
+}
+
 export function layerOf(args: Record<string, unknown>): string {
   const layer = args.layer
   if (typeof layer === 'string' && LAYERS.has(layer)) {

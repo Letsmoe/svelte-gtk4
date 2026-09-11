@@ -9,6 +9,8 @@ import bluetoothBackend from './bluetooth/backend.js'
 import weatherBackend from './weather/backend.js'
 import airQualityBackend from './airquality/backend.js'
 import neoshellViews from './neoshell/views.js'
+import lockBackend from './lock/backend.js'
+import lockViews from './lock/views.js'
 import quicksettingsViews from './quicksettings/views.js'
 import weatherViews from './weather/views.js'
 import airQualityViews from './airquality/views.js'
@@ -74,6 +76,11 @@ export const EXTENSIONS: Record<string, ExtensionModule> = {
   neoshell: {
     manifest: { id: 'neoshell', inject: ['bus', 'ui'] },
     views: neoshellViews,
+  },
+  lock: {
+    manifest: { id: 'lock', inject: ['bus', 'ui'] },
+    backend: lockBackend as Plugin.Object,
+    views: lockViews,
   },
   quicksettings: {
     manifest: { id: 'quicksettings', inject: ['bus', 'ui'] },

@@ -1222,3 +1222,115 @@ button.qs-row-action:hover {
   box-shadow: none;
   margin: 0;
 }
+
+/* ── lock screen ──────────────────────────────────────────────────────── */
+
+/* A darkening gradient over the wallpaper, heaviest where the text sits. */
+.lock-scrim {
+  background-image: linear-gradient(
+    to bottom,
+    alpha(#000000, 0.45),
+    alpha(#000000, 0.1) 35%,
+    alpha(#000000, 0.15) 70%,
+    alpha(#000000, 0.55)
+  );
+}
+
+.lock-layout {
+  padding: 72px 0 56px 0;
+}
+
+.lock-date {
+  font-size: 22px;
+  font-weight: 500;
+  color: alpha(#fafafa, 0.9);
+}
+
+/* Thin and large, the macOS lock clock. */
+.lock-time {
+  font-size: 108px;
+  font-weight: 200;
+  color: alpha(#fafafa, 0.92);
+}
+
+.lock-battery {
+  font-size: 13px;
+  color: alpha(#fafafa, 0.75);
+}
+
+/* The now-playing card: frosted, rounded, the width of its content. */
+.lock-media {
+  padding: 14px 18px;
+  min-width: 320px;
+  border-radius: 18px;
+  background-color: alpha(#0b0b0d, 0.55);
+  border: 1px solid alpha(#fafafa, 0.12);
+}
+
+.lock-media-art {
+  border-radius: 8px;
+  background-color: alpha(#fafafa, 0.1);
+}
+
+.lock-media-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lock-media-artist {
+  font-size: 12px;
+  color: alpha(#fafafa, 0.7);
+}
+
+.lock-media-button {
+  padding: 6px;
+  border-radius: 999px;
+  color: var(--base-content);
+  background-color: transparent;
+}
+
+.lock-media-button:hover {
+  background-color: alpha(#fafafa, 0.12);
+}
+
+.lock-avatar {
+  border-radius: 999px;
+  background-color: alpha(#fafafa, 0.15);
+}
+
+.lock-avatar-initials {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--base-content);
+}
+
+.lock-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: alpha(#fafafa, 0.95);
+}
+
+/* A translucent pill; the theme's entry chrome would read as a text field on
+   a form, which this is not. */
+.lock-password {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid alpha(#fafafa, 0.18);
+  background-color: alpha(#fafafa, 0.14);
+  color: var(--base-content);
+  font-size: 13px;
+}
+
+.lock-password:focus-within {
+  border-color: alpha(#fafafa, 0.4);
+}
+
+.lock-hint {
+  font-size: 12px;
+  color: alpha(#fafafa, 0.65);
+}
+
+.lock-hint-error {
+  color: var(--error);
+}

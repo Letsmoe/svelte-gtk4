@@ -13,6 +13,7 @@ export interface CommandResult {
 }
 
 const PIPED = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+const PIPED_WITH_INPUT = PIPED | Gio.SubprocessFlags.STDIN_PIPE
 const STREAMED = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
 
 export function run(command: string[]): Promise<CommandResult> {
@@ -22,6 +23,20 @@ export function run(command: string[]): Promise<CommandResult> {
   }
   return new Promise((resolve) => {
     child.communicate_utf8_async(null, null, (process, result) => {
+      resolve(finishCommand(child, process, result))
+    })
+  })
+}
+
+// runWithInput is run with something written to the child's stdin — the way a
+// helper takes a secret, so it never appears in an argv that `ps` can read.
+export function runWithInput(command: string[], input: string): Promise<CommandResult> {
+  const child = spawn(command, PIPED_WITH_INPUT)
+  if (child === null) {
+    return Promise.resolve({ ok: false, stdout: '', stderr: `${command[0]} unavailable` })
+  }
+  return new Promise((resolve) => {
+    child.communicate_utf8_async(input, null, (process, result) => {
       resolve(finishCommand(child, process, result))
     })
   })

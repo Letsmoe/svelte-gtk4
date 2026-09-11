@@ -1,7 +1,9 @@
 import Gtk from "gi://Gtk?version=4.0";
 import LayerShell from "gi://Gtk4LayerShell?version=1.0";
+import type SessionLock from "gi://Gtk4SessionLock?version=1.0";
+import type Gdk from "gi://Gdk?version=4.0";
 import type { SElement } from "../../dom/nodes";
-import { asBool, asEnum, asNumber, asString } from "../attrs";
+import { asBool, asEnum, asNumber, asObject, asString } from "../attrs";
 import { watchInputRegion } from "../inputRegion";
 import { Widget } from "./base";
 
@@ -28,9 +30,19 @@ function unsetIfZero(size: number): number {
   return size;
 }
 
+/** What the `lock` attribute takes: a session-lock instance and the monitor. */
+export interface LockAssignment {
+  instance: SessionLock.Instance;
+  monitor: Gdk.Monitor;
+}
+
 /**
  * A toplevel, and — the moment any `layer`, `anchor`, `namespace`,
  * `exclusive-zone` or `keyboard-mode` attribute appears — a layer surface.
+ * With `lock={{ instance, monitor }}` it is instead a session-lock surface on
+ * that monitor: assigned before it is realized, which the deferred present
+ * guarantees, and destroyed by the library when the lock ends — the root's
+ * own destroy on removal is then a no-op.
  *
  * One child, plus one marked `place="titlebar"`. Signal: `close-request`.
  */
@@ -40,6 +52,8 @@ export class GtkWindow extends Widget<Gtk.Window> {
   // gtk4-layer-shell has to be initialized before the window is realized, and
   // exactly once.
   private layered = false;
+  // A window is assigned to a monitor once; the protocol has no reassignment.
+  private locked = false;
 
   constructor(node: SElement) {
     super(node, new Gtk.Window());
@@ -128,6 +142,9 @@ export class GtkWindow extends Widget<Gtk.Window> {
           asEnum(KEYBOARD_MODES, value, KEYBOARD_MODES.none),
         );
         return true;
+      case "lock":
+        this.assignLock(asObject<LockAssignment>(value));
+        return true;
       default:
         return super.attr(name, value);
     }
@@ -147,6 +164,17 @@ export class GtkWindow extends Widget<Gtk.Window> {
       return;
     }
     this.widget.set_child(null);
+  }
+
+  private assignLock(assignment: LockAssignment | null): void {
+    if (assignment === null || this.locked) {
+      return;
+    }
+    assignment.instance.assign_window_to_monitor(
+      this.widget,
+      assignment.monitor,
+    );
+    this.locked = true;
   }
 
   private ensureLayerShell(): void {

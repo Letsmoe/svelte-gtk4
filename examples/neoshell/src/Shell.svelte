@@ -5,6 +5,7 @@
   import {
     anchorOf,
     exclusiveZoneOf,
+    isDetached,
     keyOf,
     keyboardOf,
     layerOf,
@@ -51,7 +52,11 @@
 
 {#each nodes as node, index (keyOf(node, index))}
   {@const args = recordOf(node.args)}
-  {#if isReady(node, generation)}
+  {#if !isReady(node, generation)}
+    <!-- waits for the component -->
+  {:else if isDetached(args)}
+    <ViewNode {node} {bus} {registry} {generation} />
+  {:else}
     <gtkwindow
       namespace={namespaceOf(node)}
       layer={layerOf(args)}

@@ -127,6 +127,14 @@ const DEFAULT_TREE: TreeNode[] = [
     },
   },
   {
+    id: 'lock',
+    type: 'lock.screen',
+    // Detached: the lock screen's windows are session-lock surfaces, one per
+    // monitor, created while the session is locked and destroyed with the
+    // lock — not a layer-shell window the shell could keep around.
+    args: { detached: true },
+  },
+  {
     id: 'widgetgallery',
     type: 'neoshell.widgetgallery',
     args: {

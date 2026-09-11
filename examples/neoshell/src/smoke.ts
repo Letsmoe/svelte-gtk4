@@ -93,6 +93,15 @@ bus.retain('airquality.current', {
 bus.retain('system.volume', { volume: 40, muted: false })
 bus.retain('system.brightness', { percent: 60, available: true })
 bus.retain('system.battery', { percent: 80, status: 'Discharging' })
+bus.retain('media.player', {
+  status: 'Playing',
+  title: 'Smoke track',
+  artist: 'Smoke artist',
+  album: '',
+  artUrl: '',
+  length: 180,
+  shuffle: false,
+})
 bus.retain('network.state', {
   available: true,
   enabled: true,

@@ -189,6 +189,14 @@ export function isImage(name: string): boolean {
   return IMAGE_EXTENSIONS.has(extensionOf(name))
 }
 
+// The containers GStreamer's playbin opens in practice; the wallpaper picker
+// lists these next to the images.
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.webm', '.mkv', '.mov', '.avi'])
+
+export function isVideo(name: string): boolean {
+  return VIDEO_EXTENSIONS.has(extensionOf(name))
+}
+
 // openEntry hands the path to the desktop's own handler. GIO launches it
 // through the portal or a fresh process group, so the opened application
 // outlives the shell without a detach of our own.
@@ -366,12 +374,14 @@ function collectTrashResult(path: string, trashed: string[], errors: string[]): 
   errors.push(`${path}: ${error}`)
 }
 
-// listImages backs the wallpaper picker.
+// listImages backs the wallpaper picker. Videos are listed too: a live
+// wallpaper is chosen the same way a still one is.
 function listImages(wallpaperDir: string, data: unknown): unknown {
   const request = data as { dir?: string }
   const dir = stringOr(request.dir, wallpaperDir)
   const entries = readDirectoryEntries(dir)
-    .filter((entry) => !entry.directory && !entry.name.startsWith('.') && isImage(entry.name))
+    .filter((entry) => !entry.directory && !entry.name.startsWith('.'))
+    .filter((entry) => isImage(entry.name) || isVideo(entry.name))
     .map((entry) => ({ name: entry.name, path: joinPath(dir, entry.name) }))
   entries.sort((left, right) => left.name.localeCompare(right.name))
   return { path: dir, entries }

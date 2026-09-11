@@ -1,6 +1,7 @@
+import type Gdk from "gi://Gdk?version=4.0";
 import Gtk from "gi://Gtk?version=4.0";
 import type { SElement } from "../../dom/nodes";
-import { asBool, asEnum, asString } from "../attrs";
+import { asBool, asEnum, asObject, asString } from "../attrs";
 import { Widget } from "./base";
 import { CONTENT_FIT } from "./enums";
 
@@ -19,6 +20,11 @@ export class GtkPicture extends Widget<Gtk.Picture> {
         return true;
       case "resource":
         this.widget.set_resource(asString(value));
+        return true;
+      // A Gdk.Paintable from an expression — a media stream, a texture built
+      // by hand — for content that is not a file on disk.
+      case "paintable":
+        this.widget.set_paintable(asObject<Gdk.Paintable>(value));
         return true;
       case "fit":
         this.widget.set_content_fit(
