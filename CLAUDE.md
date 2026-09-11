@@ -122,6 +122,11 @@ Deliberately **not** wrapped:
   own rubber band.
 - **Press and drag details carry `state`**, the Gdk modifier mask, so a view
   can tell ctrl-click from click without a key controller.
+- **An input region lands one commit late.** `set_input_region` is applied on
+  the surface's next commit, and `inputRegion.ts` computes it in `after-paint`,
+  after GDK has committed that frame — so it queues one more draw. Without it
+  a change whose last frame is still (a tray closing) leaves the previous
+  region live, and a full-output surface becomes a dead screen.
 - **Nothing dismisses a layer window from outside it.** A tray that should
   close on click-away has to span the output and put a near-transparent
   `input` backdrop under its panel (`.menu-backdrop` pattern); a closed tray

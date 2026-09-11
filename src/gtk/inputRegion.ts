@@ -72,6 +72,12 @@ function publish(window: Gtk.Window, published: string): string {
     region.unionRectangle(rect);
   }
   surface.set_input_region(region);
+  // GDK hands the region to the compositor with the surface's next commit,
+  // and this runs after the commit GDK made for the frame just painted. Left
+  // there, a change that ends in a still picture — a tray closing — never
+  // reaches the compositor, and the old region keeps taking the clicks. One
+  // more frame is what carries it across.
+  window.queue_draw();
   return key;
 }
 
