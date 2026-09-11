@@ -19,7 +19,8 @@ export async function checkPassword(password: string): Promise<AuthResult> {
   if (password === '') {
     return { ok: false, error: 'empty password' }
   }
-  const result = await runWithInput([HELPER, GLib.get_user_name(), 'nullok'], `${password}\0`)
+  const input = new TextEncoder().encode(`${password}\0`)
+  const result = await runWithInput([HELPER, GLib.get_user_name(), 'nullok'], input)
   if (result.ok) {
     return { ok: true, error: '' }
   }

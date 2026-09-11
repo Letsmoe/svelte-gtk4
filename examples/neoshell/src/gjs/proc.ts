@@ -30,14 +30,16 @@ export function run(command: string[]): Promise<CommandResult> {
 
 // runWithInput is run with something written to the child's stdin — the way a
 // helper takes a secret, so it never appears in an argv that `ps` can read.
-export function runWithInput(command: string[], input: string): Promise<CommandResult> {
+// The input goes as bytes: the string variant is marshalled as a C string, so
+// a NUL inside it (unix_chkpwd's password terminator) would cut it short.
+export function runWithInput(command: string[], input: Uint8Array): Promise<CommandResult> {
   const child = spawn(command, PIPED_WITH_INPUT)
   if (child === null) {
     return Promise.resolve({ ok: false, stdout: '', stderr: `${command[0]} unavailable` })
   }
   return new Promise((resolve) => {
-    child.communicate_utf8_async(input, null, (process, result) => {
-      resolve(finishCommand(child, process, result))
+    child.communicate_async(new GLib.Bytes(input), null, (process, result) => {
+      resolve(finishBytesCommand(child, process, result))
     })
   })
 }
@@ -137,6 +139,37 @@ function finishCommand(
   } catch (error) {
     return { ok: false, stdout: '', stderr: String(error) }
   }
+}
+
+function finishBytesCommand(
+  child: Gio.Subprocess,
+  process: Gio.Subprocess | null,
+  result: Gio.AsyncResult,
+): CommandResult {
+  if (process === null) {
+    return { ok: false, stdout: '', stderr: 'process vanished' }
+  }
+  try {
+    const [, stdout, stderr] = process.communicate_finish(result)
+    return {
+      ok: child.get_successful(),
+      stdout: trimmed(decodeBytes(stdout)),
+      stderr: trimmed(decodeBytes(stderr)),
+    }
+  } catch (error) {
+    return { ok: false, stdout: '', stderr: String(error) }
+  }
+}
+
+function decodeBytes(bytes: GLib.Bytes | null): string {
+  if (bytes === null) {
+    return ''
+  }
+  const data = bytes.get_data()
+  if (data === null) {
+    return ''
+  }
+  return new TextDecoder().decode(data)
 }
 
 function readNextLine(
