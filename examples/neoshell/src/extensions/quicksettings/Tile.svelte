@@ -12,6 +12,7 @@
 
   const TILE_HEIGHT = 56
   const BADGE_SIZE = 32
+  const COMPACT_BADGE_SIZE = 26
 
   let {
     icon,
@@ -81,17 +82,24 @@
     tooltip={title}
     onclicked={activate}
   >
-    <gtkbox orientation="vertical" spacing={3} halign="center" valign="center">
+    <gtkbox orientation="vertical" spacing={2} halign="center" valign="center">
       <gtkbox
         class={badgeClass}
-        width={BADGE_SIZE}
-        height={BADGE_SIZE}
+        width={COMPACT_BADGE_SIZE}
+        height={COMPACT_BADGE_SIZE}
         halign="center"
         clip
       >
-        <gtkicon icon={iconName(icon)} size={17} halign="center" valign="center" hexpand></gtkicon>
+        <gtkicon icon={iconName(icon)} size={15} halign="center" valign="center" hexpand></gtkicon>
       </gtkbox>
-      <gtklabel class="qs-tile-compact-label" ellipsize="end" max-width-chars={9}>
+      <gtklabel
+        class="qs-tile-compact-label"
+        wrap
+        lines={2}
+        ellipsize="end"
+        justify="center"
+        max-width-chars={10}
+      >
         {title}
       </gtklabel>
     </gtkbox>

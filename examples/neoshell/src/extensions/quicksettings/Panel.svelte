@@ -14,14 +14,15 @@
   //
   //   quicksettings:toggle / :open / :close   drive visibility
   //
-  // The webview build rendered this into a wrapper spanning the whole output so
-  // a scrim could catch a click anywhere and dismiss the tray. The tray is its
-  // own layer-shell window here, anchored to the top-right corner and only as
-  // large as the panel — there is no surface left over to put a scrim on, so
-  // the clock's toggle, the pages' own buttons and the actions that close on
-  // completion are what dismiss it. A closed tray draws a zero-size marker
-  // instead of nothing: an empty input region is what keeps the corner
-  // click-through, and a surface with no marked widget at all claims the lot.
+  // The tray's window spans the output. While the tray is open a backdrop
+  // under the panel takes the click that lands anywhere else and dismisses
+  // it, the way a menu closes when clicked away from. A closed tray draws a
+  // zero-size marker instead of nothing: an empty input region is what keeps
+  // the whole surface click-through, and a surface with no marked widget at
+  // all claims the lot.
+  //
+  //   args.offsetTop   the bar's height plus the gap the panel hangs below it
+  //   args.offsetEnd   the gap between the panel and the output's right edge
 
   const COMMAND_TIMEOUT_MS = 5000
   const PANEL_WIDTH = 328
@@ -29,7 +30,10 @@
 
   type Page = 'main' | 'wifi' | 'bluetooth'
 
-  let { bus }: ViewProps = $props()
+  let { bus, args }: ViewProps = $props()
+
+  const offsetTop = $derived(numberOf(recordOf(args).offsetTop, 36))
+  const offsetEnd = $derived(numberOf(recordOf(args).offsetEnd, 6))
 
   let open = $state(false)
   let page = $state<Page>('main')
@@ -332,7 +336,21 @@
 </script>
 
 {#if open}
-  <gtkbox class="panel" orientation="vertical" spacing={10} width={PANEL_WIDTH} input>
+  <gtkoverlay hexpand vexpand>
+    <gtkpressable class="menu-backdrop" hexpand vexpand input onpress={close}></gtkpressable>
+
+    <gtkbox
+      overlay
+      class="panel"
+      orientation="vertical"
+      spacing={10}
+      halign="end"
+      valign="start"
+      margin-top={offsetTop}
+      margin-end={offsetEnd}
+      width={PANEL_WIDTH}
+      input
+    >
     {#if page === 'wifi'}
       <WifiPage {bus} networkState={network} {networks} onBack={() => (page = 'main')} />
     {:else if page === 'bluetooth'}
@@ -462,7 +480,8 @@
         </gtkbox>
       {/if}
     {/if}
-  </gtkbox>
+    </gtkbox>
+  </gtkoverlay>
 {:else}
   <!-- A closed tray still reports one rect, and an empty one is what makes the
        layer click-through; rendering nothing would leave the whole surface

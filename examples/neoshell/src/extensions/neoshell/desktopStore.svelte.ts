@@ -1,5 +1,5 @@
 import { clampPoint, overlapsAny, rectOf, sizePx, snapPoint, spanOf, unitOf } from './freeform'
-import type { Guide, Point, Rect, Size, Snapped, Viewport } from './freeform'
+import type { Point, Rect, Size, Viewport } from './freeform'
 import {
   distinct,
   entriesOf,
@@ -65,7 +65,6 @@ export class DesktopStore {
   viewportHeight = $state(1080)
   desktopLocked = $state(false)
   sortMode = $state('name')
-  guides = $state<Guide[]>([])
 
   private storedIcons = $state<Record<string, Point>>({})
   private storedWidgets = $state<Record<string, Record<string, unknown>> | null>(null)
@@ -197,27 +196,13 @@ export class DesktopStore {
     this.bus.publish('widgets:gallery', { open: true })
   }
 
-  // snapDrag is the live half of a drag: it reports where the item would land
-  // and the lines that explain why, without committing anything.
-  snapDrag(point: Point, size: Size, exclude: Rect[]): Point {
-    const snapped = this.snapped(point, size, exclude)
-    this.guides = snapped.guides
-    return clampPoint(snapped.point, size, this.viewport)
-  }
-
-  // A widget drag draws the box it would land in, which says everything the
-  // lines would have said.
-  snapWithoutGuides(point: Point, size: Size, exclude: Rect[]): Point {
-    const snapped = this.snapped(point, size, exclude)
-    return clampPoint(snapped.point, size, this.viewport)
-  }
-
-  private snapped(point: Point, size: Size, exclude: Rect[]): Snapped {
-    return snapPoint(point, size, this.othersFor(exclude), this.viewport)
-  }
-
-  clearGuides(): void {
-    this.guides = []
+  // landingFor is where a dragged rect settles: pulled onto the screen edges
+  // and the neighbours it nearly lines up with, then kept on the desktop. It
+  // commits nothing, so the drop preview and the drop itself ask the same
+  // question.
+  landingFor(point: Point, size: Size, exclude: Rect[]): Point {
+    const snapped = snapPoint(point, size, this.othersFor(exclude), this.viewport)
+    return clampPoint(snapped, size, this.viewport)
   }
 
   private othersFor(exclude: Rect[]): Rect[] {

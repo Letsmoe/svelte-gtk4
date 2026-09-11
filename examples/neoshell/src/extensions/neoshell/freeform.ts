@@ -43,18 +43,6 @@ export interface Span {
   rows: number
 }
 
-// A line the desktop draws while something is being dragged, at the coordinate
-// the drag snapped to.
-export interface Guide {
-  vertical: boolean
-  position: number
-}
-
-export interface Snapped {
-  point: Point
-  guides: Guide[]
-}
-
 export const ICON_SPAN: Span = { columns: 1, rows: 1 }
 
 const SPANS: Record<string, Span> = {
@@ -128,64 +116,35 @@ export function clampPoint(point: Point, size: Size, viewport: Viewport): Point 
 }
 
 // A candidate pairs an edge of the moving rect with a coordinate it could
-// settle on. Alignment candidates draw a guide; the adjacency ones — a widget
-// set one gutter away from its neighbour — snap without one, since a line
-// floating in the gap between two cards explains nothing.
+// settle on: an alignment with a screen edge or a neighbour's edge, or the
+// adjacency one gutter away from a neighbour.
 interface Candidate {
   edge: number
   target: number
-  guide: boolean
 }
 
-export function snapPoint(
-  point: Point,
-  size: Size,
-  others: Rect[],
-  viewport: Viewport,
-): Snapped {
-  const horizontal = resolveAxis(horizontalCandidates(point.x, size.width, others, viewport))
-  const vertical = resolveAxis(verticalCandidates(point.y, size.height, others, viewport))
+// snapPoint is applied once, at the drop: while a drag is live the item stays
+// under the pointer, and only where it lands is pulled into alignment.
+export function snapPoint(point: Point, size: Size, others: Rect[], viewport: Viewport): Point {
   return {
-    point: { x: point.x + horizontal.offset, y: point.y + vertical.offset },
-    guides: [...guidesFor(horizontal, true), ...guidesFor(vertical, false)],
+    x: point.x + resolveAxis(horizontalCandidates(point.x, size.width, others, viewport)),
+    y: point.y + resolveAxis(verticalCandidates(point.y, size.height, others, viewport)),
   }
 }
 
-interface AxisSnap {
-  offset: number
-  guide: number | null
-}
-
-const NO_SNAP: AxisSnap = { offset: 0, guide: null }
-
 // The nearest candidate inside the threshold wins; a tie keeps the first,
 // which is the viewport edge, so the screen beats a neighbour.
-function resolveAxis(candidates: Candidate[]): AxisSnap {
-  let best = NO_SNAP
+function resolveAxis(candidates: Candidate[]): number {
+  let offset = 0
   let bestDistance = SNAP_PX
   for (const candidate of candidates) {
     const distance = Math.abs(candidate.target - candidate.edge)
     if (distance < bestDistance) {
       bestDistance = distance
-      best = snapFor(candidate)
+      offset = candidate.target - candidate.edge
     }
   }
-  return best
-}
-
-function snapFor(candidate: Candidate): AxisSnap {
-  const offset = candidate.target - candidate.edge
-  if (!candidate.guide) {
-    return { offset, guide: null }
-  }
-  return { offset, guide: candidate.target }
-}
-
-function guidesFor(snap: AxisSnap, vertical: boolean): Guide[] {
-  if (snap.guide === null) {
-    return []
-  }
-  return [{ vertical, position: snap.guide }]
+  return offset
 }
 
 function horizontalCandidates(
@@ -199,8 +158,8 @@ function horizontalCandidates(
   const candidates = alignmentCandidates(edges, screen)
   for (const other of others) {
     candidates.push(...alignmentCandidates(edges, [other.x, other.x + other.width / 2, other.x + other.width]))
-    candidates.push({ edge: x, target: other.x + other.width + GAP_PX, guide: false })
-    candidates.push({ edge: x + width, target: other.x - GAP_PX, guide: false })
+    candidates.push({ edge: x, target: other.x + other.width + GAP_PX })
+    candidates.push({ edge: x + width, target: other.x - GAP_PX })
   }
   return candidates
 }
@@ -216,8 +175,8 @@ function verticalCandidates(
   const candidates = alignmentCandidates(edges, screen)
   for (const other of others) {
     candidates.push(...alignmentCandidates(edges, [other.y, other.y + other.height / 2, other.y + other.height]))
-    candidates.push({ edge: y, target: other.y + other.height + GAP_PX, guide: false })
-    candidates.push({ edge: y + height, target: other.y - GAP_PX, guide: false })
+    candidates.push({ edge: y, target: other.y + other.height + GAP_PX })
+    candidates.push({ edge: y + height, target: other.y - GAP_PX })
   }
   return candidates
 }
@@ -226,7 +185,7 @@ function verticalCandidates(
 // with trailing. Aligning a left edge to a right one is the adjacency case,
 // which carries a gutter and is added separately.
 function alignmentCandidates(edges: number[], targets: number[]): Candidate[] {
-  return edges.map((edge, index) => ({ edge, target: targets[index], guide: true }))
+  return edges.map((edge, index) => ({ edge, target: targets[index] }))
 }
 
 // firstFreeSpot walks the desktop in unit steps and returns the first place the

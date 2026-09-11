@@ -68,18 +68,17 @@ const DEFAULT_TREE: TreeNode[] = [
   {
     id: 'quicksettings',
     type: 'quicksettings.panel',
-    // The tray hangs from the bar's right-hand end. A closed tray keeps the
-    // window empty, so it neither reserves input nor covers what is under it.
-    //
-    // exclusiveSize 0 rather than the default -1: the tray reserves nothing of
-    // its own, but it does have to respect what the bar reserved, or the
-    // compositor would put it at the top of the output and under the bar.
+    // The tray spans the output so a click anywhere outside the panel can
+    // dismiss it. A closed tray keeps the window's input region empty, so it
+    // neither takes input nor covers what is under it; the panel itself hangs
+    // below the bar at the right-hand end.
     args: {
       layer: 'top',
-      anchors: ['top', 'right'],
+      anchors: ['top', 'bottom', 'left', 'right'],
       keyboard: 'ondemand',
-      exclusiveSize: 0,
-      margin: 6,
+      offsetTop: 36,
+      offsetEnd: 6,
+      blur: true,
     },
   },
   {

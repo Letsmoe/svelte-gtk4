@@ -2,7 +2,6 @@
   import { subscribeTo } from '../../lib/bus'
   import type { ViewProps } from '../../host/plugins/views'
   import { recordOf } from '../../lib/record'
-  import AlignmentGuides from './AlignmentGuides.svelte'
   import ContextMenu from './ContextMenu.svelte'
   import DesktopIcons from './DesktopIcons.svelte'
   import WidgetSlot from './WidgetSlot.svelte'
@@ -34,6 +33,9 @@
   const store = new DesktopStore(bus)
 
   let band = $state<{ x: number; y: number; width: number; height: number } | null>(null)
+  // The release that ends a rubber band also arrives as a press on the
+  // background, which must not throw the selection the band just made away.
+  let bandMoved = false
   let preview = $state<{ point: Point; box: Size; allowed: boolean } | null>(null)
   // The registry is outside Svelte's reactivity, so a widget provider that
   // registers after the desktop is up is picked up by bumping this.
@@ -102,17 +104,20 @@
   }
 
   function handlePress(event: { detail: unknown }): void {
-    const press = pressOf(event)
-    if (press.button !== SECONDARY_BUTTON) {
-      store.clearSelection()
+    if (bandMoved) {
+      bandMoved = false
       return
     }
+    const press = pressOf(event)
     store.clearSelection()
-    void openMenu(press.x, press.y)
+    if (press.button === SECONDARY_BUTTON) {
+      void openMenu(press.x, press.y)
+    }
   }
 
   function startBand(event: { detail: unknown }): void {
     const drag = dragOf(event)
+    bandMoved = false
     store.clearSelection()
     band = { x: drag.startX, y: drag.startY, width: 0, height: 0 }
   }
@@ -122,6 +127,7 @@
       return
     }
     const drag = dragOf(event)
+    bandMoved = true
     band = {
       x: Math.min(drag.startX, drag.x),
       y: Math.min(drag.startY, drag.y),
@@ -272,11 +278,12 @@
     ></gtkbox>
   {/if}
 
-  <DesktopIcons {bus} {store} />
-
   {#each store.widgetPlacements() as placement (placement.id)}
     <WidgetSlot {placement} {bus} {registry} {generation} {store} onpreview={showPreview} />
   {/each}
+
+  <!-- Icons come after the widgets so a dragged icon travels over them. -->
+  <DesktopIcons {bus} {store} />
 
   {#if band !== null}
     <gtkbox
@@ -290,8 +297,6 @@
       height={band.height}
     ></gtkbox>
   {/if}
-
-  <AlignmentGuides guides={store.guides} />
 
   {#if store.menu !== null}
     <ContextMenu

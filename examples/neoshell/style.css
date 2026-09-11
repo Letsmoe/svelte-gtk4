@@ -46,15 +46,22 @@ window {
 
 /* GTK gives buttons a themed background even with has-frame off. Decoration
    only: an element selector out-specifies the single-class rules that set each
-   button's own padding and radius. */
+   button's own padding and radius. The colour is pinned too: a layer surface
+   is never the focused window, and the theme greys every button's text in
+   :backdrop, which reads as disabled on a bar that is always in that state. */
 .topbar button,
 .dock button,
 .island button,
-.panel button {
+.panel button,
+.topbar button:backdrop,
+.dock button:backdrop,
+.island button:backdrop,
+.panel button:backdrop {
   background-image: none;
   background-color: transparent;
   border: none;
   box-shadow: none;
+  color: var(--base-content);
 }
 
 /* ── top bar ──────────────────────────────────────────────────────────── */
@@ -68,44 +75,41 @@ window {
   font-weight: 500;
 }
 
-/* h-6 min-w-6 rounded-lg px-2 text-[11px] transition-colors duration-150.
-   No h-6: GTK CSS has no height, so min-height is the floor and the row's
-   valign keeps it from stretching. */
-.workspace {
-  min-height: 24px;
-  min-width: 24px;
-  padding: 0 8px;
-  border-radius: var(--radius-box);
+/* A compact pill per workspace. The element is in the selector on purpose: a
+   labelled button carries the theme's `button.text-button`, whose 16px side
+   padding out-specifies a bare class and made every pill twice as wide as its
+   digit. No h-6: GTK CSS has no height, so min-height is the floor and the
+   row's valign keeps it from stretching. */
+button.workspace {
+  min-height: 20px;
+  min-width: 12px;
+  padding: 0 6px;
+  border-radius: 6px;
   font-size: 11px;
+  font-weight: 600;
   transition: background-color 150ms, color 150ms;
 }
 
-.workspace:hover {
-  background-color: alpha(#fafafa, 0.1);
+button.workspace:hover {
+  background-color: alpha(#fafafa, 0.12);
 }
 
-/* bg-base-content/15 font-semibold text-base-content */
-.workspace.active {
-  background-color: alpha(#fafafa, 0.15);
+button.workspace.active {
+  background-color: alpha(#fafafa, 0.2);
   color: var(--base-content);
-  font-weight: 600;
 }
 
-/* text-base-content/70 */
-.workspace.occupied {
-  color: alpha(#fafafa, 0.7);
+button.workspace.occupied {
+  color: alpha(#fafafa, 0.85);
 }
 
-/* text-base-content/25 */
-.workspace.empty {
-  color: alpha(#fafafa, 0.25);
+button.workspace.empty {
+  color: alpha(#fafafa, 0.45);
 }
 
-/* bg-warning/20 font-semibold text-warning */
-.workspace.urgent {
+button.workspace.urgent {
   background-color: alpha(#fbbf24, 0.2);
   color: var(--warning);
-  font-weight: 600;
 }
 
 /* rounded-lg px-2 py-0.5 tabular-nums hover:bg-base-content/10.
@@ -327,8 +331,10 @@ window {
 }
 
 .control:hover { background-color: alpha(#fafafa, 0.1); }
-.control-active { color: var(--accent); }
-.control-idle { color: alpha(#fafafa, 0.85); }
+/* Element in the selector: the bar-wide button reset pins a colour at
+   element-plus-class specificity, and these have to beat it. */
+button.control-active { color: var(--accent); }
+button.control-idle { color: alpha(#fafafa, 0.85); }
 
 /* ── dock ─────────────────────────────────────────────────────────────── */
 
@@ -419,6 +425,12 @@ window {
   transition: background-color 120ms;
 }
 
+/* The copy that follows the pointer while the original stays put. */
+.desktop-icon.ghost {
+  opacity: 0.6;
+  background-color: alpha(#fafafa, 0.12);
+}
+
 .desktop-icon:hover {
   background-color: alpha(#fafafa, 0.1);
 }
@@ -457,31 +469,31 @@ window {
   border-radius: 2px;
 }
 
-/* bg-primary/70, one pixel wide */
-.alignment-guide {
-  background-color: alpha(#fafafa, 0.7);
-}
-
-/* The lift is the drag's own feedback: a widget sitting still casts nothing,
-   and the shadow arrives fast enough to read as a response to the grab rather
-   than as an animation of its own. */
+/* The lift is the drag's own feedback: a widget sitting still casts nothing
+   and sits flat; a grabbed one grows a touch and throws a shadow, fast enough
+   to read as a response to the grab rather than as an animation of its own. */
 .widget-slot {
   border-radius: 24px;
-  transition: box-shadow 100ms ease-out;
+  transition: box-shadow 120ms ease-out, transform 120ms ease-out;
 }
 
 .widget-slot.dragging {
   box-shadow: 0 25px 50px alpha(#000000, 0.55);
+  transform: scale(1.03);
 }
 
-/* Faint where the drop would be refused, since the widget will spring back. */
+/* The placeholder where the widget would settle: a filled, quiet slab rather
+   than an outline. Faint where the drop would be refused, since the widget
+   will glide back. */
 .widget-preview {
   border-radius: 24px;
-  border: 2px solid alpha(#ffffff, 0.8);
+  background-color: alpha(#fafafa, 0.12);
+  border: 1px solid alpha(#fafafa, 0.25);
 }
 
 .widget-preview.taken {
-  border-color: alpha(#ffffff, 0.2);
+  background-color: alpha(#fafafa, 0.04);
+  border-color: alpha(#fafafa, 0.1);
 }
 
 /* ── context menu ─────────────────────────────────────────────────────── */
@@ -538,12 +550,12 @@ window {
 
 /* ── quick settings ───────────────────────────────────────────────────── */
 
-/* rounded-3xl border border-base-content/8 bg-base-200 p-2.5 shadow-2xl —
-   the tray is its own layer surface now, so the absolute placement under the
-   bar is the window's anchors and only the box survives here. */
+/* rounded-3xl border border-base-content/8 bg-base-200 p-2.5 shadow-2xl
+   backdrop-blur — the blur is the compositor's, asked for by the node, so the
+   surface is translucent enough to show it. */
 .panel {
-  background-color: var(--base-200);
-  border: 1px solid alpha(#fafafa, 0.08);
+  background-color: alpha(#0b0b0d, 0.78);
+  border: 1px solid alpha(#fafafa, 0.12);
   border-radius: 24px;
   padding: 10px;
   box-shadow: 0 25px 50px alpha(#000000, 0.6);
@@ -597,14 +609,14 @@ window {
   border-radius: 16px;
 }
 
-.qs-tile-open {
+button.qs-tile-open {
   padding: 0 8px 0 4px;
   border-radius: 16px;
   color: alpha(#fafafa, 0.45);
   transition: color 120ms;
 }
 
-.qs-tile-open:hover {
+button.qs-tile-open:hover {
   color: var(--base-content);
 }
 
@@ -629,6 +641,7 @@ window {
 .qs-tile-title {
   font-size: 12px;
   font-weight: 500;
+  color: var(--base-content);
 }
 
 /* text-[10px] leading-tight opacity-55 */
@@ -637,9 +650,11 @@ window {
   color: alpha(#fafafa, 0.55);
 }
 
-/* text-[9.5px] leading-[1.15] */
+/* text-[9.5px] leading-[1.15], wrapping onto a second line rather than
+   cutting "Do not disturb" short. */
 .qs-tile-compact-label {
   font-size: 10px;
+  color: var(--base-content);
 }
 
 /* The slider was a range input whose track carried the fill as a gradient. A
@@ -680,18 +695,18 @@ window {
 
 /* Both spellings sit over the left end of the trough; only the button form
    takes a click, so only it gets a hover. */
-.qs-slider-icon,
+button.qs-slider-icon,
 .qs-slider-lamp {
   min-width: 36px;
   color: alpha(#fafafa, 0.8);
   padding: 0;
 }
 
-.qs-slider-icon {
+button.qs-slider-icon {
   border-radius: 16px;
 }
 
-.qs-slider-icon:hover {
+button.qs-slider-icon:hover {
   color: var(--base-content);
 }
 
@@ -706,13 +721,13 @@ window {
 }
 
 /* rounded-full px-1.5 py-1 text-base-content/70 */
-.qs-power-button {
+button.qs-power-button {
   padding: 4px 6px;
   border-radius: 16px;
   color: alpha(#fafafa, 0.7);
 }
 
-.qs-power-button:hover {
+button.qs-power-button:hover {
   background-color: alpha(#fafafa, 0.1);
 }
 
@@ -824,14 +839,14 @@ window {
 }
 
 /* px-2.5 py-2 text-[10px] opacity-40 */
-.qs-row-action {
+button.qs-row-action {
   font-size: 10px;
   padding: 0 6px;
   border-radius: 12px;
   color: alpha(#fafafa, 0.4);
 }
 
-.qs-row-action:hover {
+button.qs-row-action:hover {
   color: var(--base-content);
 }
 

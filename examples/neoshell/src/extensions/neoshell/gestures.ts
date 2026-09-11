@@ -8,6 +8,8 @@ export interface PressDetail {
   y: number
   button: number
   count: number
+  // The Gdk.ModifierType mask held at the time of the event.
+  state: number
   width: number
   height: number
 }
@@ -19,6 +21,7 @@ export interface DragDetail {
   dy: number
   x: number
   y: number
+  state: number
   width: number
   height: number
 }
@@ -26,16 +29,24 @@ export interface DragDetail {
 export const PRIMARY_BUTTON = 1
 export const SECONDARY_BUTTON = 3
 
+const CONTROL_MASK = 1 << 2
+
+// Whether the click extends a selection rather than replacing it.
+export function extendsSelection(detail: { state: number }): boolean {
+  return (detail.state & CONTROL_MASK) !== 0
+}
+
 export function pressOf(event: { detail: unknown }): PressDetail {
   const detail = event.detail as Partial<PressDetail> | null
   if (detail === null || detail === undefined) {
-    return { x: 0, y: 0, button: PRIMARY_BUTTON, count: 1, width: 0, height: 0 }
+    return { x: 0, y: 0, button: PRIMARY_BUTTON, count: 1, state: 0, width: 0, height: 0 }
   }
   return {
     x: numberOr(detail.x, 0),
     y: numberOr(detail.y, 0),
     button: numberOr(detail.button, PRIMARY_BUTTON),
     count: numberOr(detail.count, 1),
+    state: numberOr(detail.state, 0),
     width: numberOr(detail.width, 0),
     height: numberOr(detail.height, 0),
   }
@@ -44,7 +55,7 @@ export function pressOf(event: { detail: unknown }): PressDetail {
 export function dragOf(event: { detail: unknown }): DragDetail {
   const detail = event.detail as Partial<DragDetail> | null
   if (detail === null || detail === undefined) {
-    return { startX: 0, startY: 0, dx: 0, dy: 0, x: 0, y: 0, width: 0, height: 0 }
+    return { startX: 0, startY: 0, dx: 0, dy: 0, x: 0, y: 0, state: 0, width: 0, height: 0 }
   }
   return {
     startX: numberOr(detail.startX, 0),
@@ -53,6 +64,7 @@ export function dragOf(event: { detail: unknown }): DragDetail {
     dy: numberOr(detail.dy, 0),
     x: numberOr(detail.x, 0),
     y: numberOr(detail.y, 0),
+    state: numberOr(detail.state, 0),
     width: numberOr(detail.width, 0),
     height: numberOr(detail.height, 0),
   }
