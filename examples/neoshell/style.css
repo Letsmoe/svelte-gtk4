@@ -559,7 +559,7 @@ button.control-idle { color: alpha(#fafafa, 0.85); }
    backdrop-blur — the blur is the compositor's, asked for by the node, so the
    surface is translucent enough to show it. */
 .panel {
-  background-color: alpha(#0b0b0d, 0.86);
+  background-color: alpha(#0b0b0d, 0.9);
   border: 1px solid alpha(#fafafa, 0.12);
   border-radius: 24px;
   padding: 10px;
