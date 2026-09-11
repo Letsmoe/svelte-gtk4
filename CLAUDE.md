@@ -44,6 +44,11 @@ than children declare it. The mirror checks for its presence.
   `name`, `title`, `row`, `col`, `x`, `y`) are read at insertion time. Svelte
   applies *dynamic* attributes from an effect that runs after the node is
   already inserted, so those must be literals in the template.
+- **`value` and `checked` arrive as properties.** Svelte compiles them to
+  `element.value = v`, never `setAttribute`; `SElement` has accessors that
+  forward them. Any other name Svelte special-cases the same way (`selected`,
+  `muted`, `volume`, `indeterminate`, …) would need the same treatment before
+  a widget sees it.
 - **Event names are GTK signal names.** `onclicked`, not `onclick`. Svelte
   delegates the standard DOM event names through a document-level listener that
   nothing here dispatches to; anything else reaches `addEventListener`.

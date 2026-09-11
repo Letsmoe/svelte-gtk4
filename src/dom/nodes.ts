@@ -388,6 +388,25 @@ export class SElement extends SNode {
     this.setAttribute("class", value);
   }
 
+  // Svelte writes `value` and `checked` as DOM properties rather than
+  // attributes — `set_value(element, v)` is `element.value = v` — so without
+  // these the two most common control attributes would never reach a widget.
+  get value(): unknown {
+    return this.getAttribute("value");
+  }
+
+  set value(value: unknown) {
+    this.setAttribute("value", value);
+  }
+
+  get checked(): unknown {
+    return this.getAttribute("checked");
+  }
+
+  set checked(value: unknown) {
+    this.setAttribute("checked", value);
+  }
+
   get classList() {
     return {
       toggle: (name: string, force?: boolean) => {
