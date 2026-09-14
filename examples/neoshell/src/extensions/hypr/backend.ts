@@ -1,3 +1,4 @@
+import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import type { Plugin } from '@neoworks/extension-system'
 import { requireService } from '../../lib/services.js'
@@ -17,6 +18,7 @@ import { request, streamLines } from '../../gjs/socket.js'
 //   hypr:dispatch {dispatcher, arg}          → {ok} | {error}
 //   hypr:keyword  {name, value}              → {ok} | {error}
 //   hypr:request  {command}                  → {reply} | {error}
+//   hypr:capture  {address, width}           → {path} | {error}
 //
 // It also provides the in-kernel "hypr" service for other extensions.
 
@@ -49,6 +51,7 @@ const hyprExtension: Plugin.Object<HyprConfig | undefined> = {
     registerFunction(context, bus, 'hypr:dispatch', (data) => runDispatch(client, data))
     registerFunction(context, bus, 'hypr:keyword', (data) => runKeyword(client, data))
     registerFunction(context, bus, 'hypr:request', (data) => runRequest(client, data))
+    registerFunction(context, bus, 'hypr:capture', (data) => captureWindow(data))
     context.provide('hypr', client)
   },
 }
@@ -252,6 +255,63 @@ async function runRequest(client: HyprClient, data: unknown): Promise<unknown> {
     return { error: 'command is required' }
   }
   return { reply: await client.request(args.command) }
+}
+
+// captureWindow grabs one frame of a window through the windowcapture helper
+// (tools/windowcapture, speaking hyprland-toplevel-export-v1) and returns the
+// PNG it wrote, at most `width` pixels wide. The helper is looked up next to
+// the shell first, then on PATH as neoshell-windowcapture.
+async function captureWindow(data: unknown): Promise<unknown> {
+  const args = data as { address?: string; width?: number }
+  if (typeof args.address !== 'string' || !/^(0x)?[0-9a-f]+$/i.test(args.address)) {
+    return { error: 'address is required' }
+  }
+  const helper = findCaptureHelper()
+  if (helper === null) {
+    return { error: 'windowcapture helper is not built (run task neoshell:tools)' }
+  }
+  const path = GLib.build_filenamev([GLib.get_tmp_dir(), `neoshell-window-${args.address}.png`])
+  try {
+    await runHelper([helper, args.address, path, String(numberOr(args.width, 240))])
+  } catch (error) {
+    return { error: String(error) }
+  }
+  return { path }
+}
+
+function findCaptureHelper(): string | null {
+  const local = GLib.build_filenamev([GLib.get_current_dir(), 'tools', 'windowcapture', 'windowcapture'])
+  if (GLib.file_test(local, GLib.FileTest.IS_EXECUTABLE)) {
+    return local
+  }
+  return GLib.find_program_in_path('neoshell-windowcapture')
+}
+
+function runHelper(argv: string[]): Promise<void> {
+  const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDERR_PIPE)
+  return new Promise((resolve, reject) => {
+    process.communicate_utf8_async(null, null, (_source, result) => {
+      let stderr = ''
+      try {
+        stderr = process.communicate_utf8_finish(result)[2]
+      } catch (error) {
+        reject(error)
+        return
+      }
+      if (!process.get_successful()) {
+        reject(new Error(stderr.trim()))
+        return
+      }
+      resolve()
+    })
+  })
+}
+
+function numberOr(value: number | undefined, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value
+  }
+  return fallback
 }
 
 function stringOrEmpty(value: string | undefined): string {

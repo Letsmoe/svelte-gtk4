@@ -169,6 +169,12 @@ export abstract class Bin<W extends Gtk.Widget = any> extends Widget<W> {
  */
 export abstract class Container<W extends Gtk.Widget = any> extends Widget<W> {
   override insert(child: SElement, before: any): void {
+    // A `<gtkpopover place="popover">` is anchored to the container rather
+    // than laid out in it: Gtk.Popover positions itself relative to its parent.
+    if (child.slotName === "popover") {
+      child.widget.set_parent(this.widget);
+      return;
+    }
     if (before === null) {
       (this.widget as any).append(child.widget);
       return;
@@ -180,6 +186,10 @@ export abstract class Container<W extends Gtk.Widget = any> extends Widget<W> {
   }
 
   override remove(child: SElement): void {
+    if (child.slotName === "popover") {
+      child.widget.unparent();
+      return;
+    }
     (this.widget as any).remove(child.widget);
   }
 }

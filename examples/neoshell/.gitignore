@@ -41,3 +41,8 @@ node_modules/
 /apps/shell/searchbench
 /.agents/
 /skills-lock.json
+
+# windowcapture helper build output
+/tools/windowcapture/windowcapture
+/tools/windowcapture/*-client.h
+/tools/windowcapture/*-protocol.c
