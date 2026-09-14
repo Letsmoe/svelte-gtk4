@@ -57,7 +57,7 @@ const POWER_COMMANDS: Record<string, string[]> = {
   lock: ['loginctl', 'lock-session'],
   // The compositor owns the session here, so logging out is its exit, not a
   // loginctl terminate-session that would need the session id.
-  logout: ['hyprctl', 'dispatch', 'exit'],
+  logout: ['hyprctl', 'dispatch', 'hl.dsp.exit()'],
 }
 
 const systemExtension: Plugin.Object<SystemConfig | undefined> = {

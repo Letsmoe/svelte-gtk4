@@ -117,8 +117,10 @@ export class HyprClient {
     return JSON.parse(raw) as Result
   }
 
+  // Hyprland ≥ 0.56 reads `dispatch` as a Lua expression returning a
+  // dispatcher; the classic `name arg` spelling no longer parses.
   dispatch(dispatcher: string, arg: string): Promise<string> {
-    return this.request(`dispatch ${dispatcher} ${arg}`)
+    return this.request(`dispatch ${luaDispatcher(dispatcher, arg)}`)
   }
 
   keyword(name: string, value: string): Promise<string> {
@@ -197,12 +199,41 @@ class HyprPublisher {
   }
 }
 
+// luaDispatcher maps the dispatcher names the views use onto the Lua API.
+function luaDispatcher(dispatcher: string, arg: string): string {
+  if (dispatcher === 'focuswindow') {
+    return `hl.dsp.focus({ window = ${luaString(arg)} })`
+  }
+  if (dispatcher === 'workspace') {
+    return `hl.dsp.focus({ workspace = ${luaString(arg)} })`
+  }
+  if (dispatcher === 'exec') {
+    return `hl.dsp.exec_cmd(${luaString(arg)})`
+  }
+  if (dispatcher === 'exit') {
+    return 'hl.dsp.exit()'
+  }
+  throw new Error(`hypr: no Lua spelling for dispatcher ${dispatcher}`)
+}
+
+function luaString(value: string): string {
+  return JSON.stringify(value)
+}
+
 async function runDispatch(client: HyprClient, data: unknown): Promise<unknown> {
   const args = data as { dispatcher?: string; arg?: string }
   if (typeof args.dispatcher !== 'string' || args.dispatcher === '') {
     return { error: 'dispatcher is required' }
   }
-  await client.dispatch(args.dispatcher, stringOrEmpty(args.arg))
+  let reply: string
+  try {
+    reply = await client.dispatch(args.dispatcher, stringOrEmpty(args.arg))
+  } catch (error) {
+    return { error: String(error) }
+  }
+  if (reply.startsWith('error')) {
+    return { error: reply }
+  }
   return { ok: true }
 }
 
