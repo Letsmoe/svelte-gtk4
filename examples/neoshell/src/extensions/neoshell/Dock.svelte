@@ -44,8 +44,13 @@
 
   let { bus }: ViewProps = $props()
 
+  interface OpenWindow {
+    address: string
+    wmClass: string
+  }
+
   let catalog = $state<DockApp[]>([])
-  let openClasses = $state<string[]>([])
+  let openWindows = $state<OpenWindow[]>([])
   let pinnedNames = $state<string[]>([])
   let configuredApps = $state<DockApp[]>([])
   let revealed = $state(false)
@@ -62,12 +67,13 @@
   let collapseTimer: number | null = null
 
   const pinned = $derived(resolvePinned(catalog, pinnedNames, configuredApps))
+  const openClasses = $derived(openClassesOf(openWindows))
   const entries = $derived(dockEntries(catalog, pinned, openClasses))
   const openKeys = $derived(new Set(openClasses.map((wmClass) => wmClass.toLowerCase())))
 
   $effect(() =>
     subscribeTo(bus, 'hypr.windows', (message) => {
-      openClasses = openClassesOf(message.data)
+      openWindows = openWindowsOf(message.data)
       stopLandedLaunches()
     }),
   )
@@ -188,17 +194,22 @@
     return app.id.toLowerCase() === needle || app.name.toLowerCase() === needle
   }
 
-  function openClassesOf(data: unknown): string[] {
-    const classes = new Set<string>()
+  function openWindowsOf(data: unknown): OpenWindow[] {
     if (!Array.isArray(data)) {
       return []
     }
+    const windows: OpenWindow[] = []
     for (const raw of data) {
-      const value = recordOf(raw).class
-      if (typeof value === 'string' && value !== '') {
-        classes.add(value)
+      const record = recordOf(raw)
+      if (typeof record.class === 'string' && record.class !== '' && typeof record.address === 'string') {
+        windows.push({ address: record.address, wmClass: record.class })
       }
     }
+    return windows
+  }
+
+  function openClassesOf(windows: OpenWindow[]): string[] {
+    const classes = new Set(windows.map((window) => window.wmClass))
     return [...classes].sort((left, right) => left.localeCompare(right))
   }
 
@@ -226,8 +237,9 @@
   }
 
   async function activate(app: DockApp): Promise<void> {
-    if (isOpen(app)) {
-      void bus.call('hypr:dispatch', { dispatcher: 'focuswindow', arg: `class:${focusClass(app)}` })
+    const window = openWindowOf(app)
+    if (window !== null) {
+      void bus.call('hypr:dispatch', { dispatcher: 'focuswindow', arg: `address:${window.address}` })
       return
     }
     startLaunch(app.id)
@@ -261,6 +273,19 @@
         stopLaunch(app.id)
       }
     }
+  }
+
+  // The window is addressed by its Hyprland handle: `focuswindow class:…` is a
+  // case-sensitive regex, and a desktop entry's StartupWMClass rarely spells
+  // the class the way the window reports it.
+  function openWindowOf(app: DockApp): OpenWindow | null {
+    const needle = focusClass(app).toLowerCase()
+    for (const window of openWindows) {
+      if (window.wmClass.toLowerCase() === needle) {
+        return window
+      }
+    }
+    return null
   }
 
   function focusClass(app: DockApp): string {
@@ -374,20 +399,30 @@
             onhoverend={() => unhover(index)}
             onpress={() => void activate(app)}
           >
-            <gtkicon
-              class={iconClass(app.id)}
-              icon={app.icon}
-              size={ICON_PIXELS}
-              halign="center"
-              css={magnifyCss(index)}
-            ></gtkicon>
-            <gtkbox
-              class="dock-running"
-              width={4}
-              height={4}
-              halign="center"
-              visible={isOpen(app)}
-            ></gtkbox>
+            <!-- A box paints its children in order, so a dot placed after the
+                 icon would draw over it once the icon magnifies. The icon is
+                 an overlay above a column that only reserves its slot. -->
+            <gtkoverlay>
+              <gtkbox orientation="vertical">
+                <gtkbox height={ICON_PIXELS}></gtkbox>
+                <gtkbox
+                  class="dock-running"
+                  width={4}
+                  height={4}
+                  halign="center"
+                  visible={isOpen(app)}
+                ></gtkbox>
+              </gtkbox>
+              <gtkicon
+                overlay
+                class={iconClass(app.id)}
+                icon={app.icon}
+                size={ICON_PIXELS}
+                halign="center"
+                valign="start"
+                css={magnifyCss(index)}
+              ></gtkicon>
+            </gtkoverlay>
           </gtkpressable>
         {/each}
       </gtkbox>
