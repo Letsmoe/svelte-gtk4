@@ -2,6 +2,7 @@
   import { subscribeTo } from '../../lib/bus'
   import type { ViewProps } from '../../host/plugins/views'
   import { recordOf } from '../../lib/record'
+  import { readTextFile } from '../../gjs/fs'
   import type Gdk from 'gi://Gdk?version=4.0'
   import { pressOf, SECONDARY_BUTTON } from './gestures'
 
@@ -58,7 +59,13 @@
     wmClass: string
     title: string
     workspace: string
+    // The process name behind the window, from /proc — what a terminal with
+    // a custom class still has in common with its desktop entry.
+    command: string
   }
+
+  const GENERIC_ICON = 'application-x-executable'
+  const STEAM_ICON = 'steam'
 
   let catalog = $state<DockApp[]>([])
   let openWindows = $state<OpenWindow[]>([])
@@ -86,7 +93,7 @@
 
   const pinned = $derived(resolvePinned(catalog, pinnedNames, configuredApps))
   const openClasses = $derived(openClassesOf(openWindows))
-  const entries = $derived(dockEntries(catalog, pinned, openClasses))
+  const entries = $derived(dockEntries(catalog, pinned, openWindows))
   const openKeys = $derived(new Set(openClasses.map((wmClass) => wmClass.toLowerCase())))
 
   $effect(() =>
@@ -151,11 +158,11 @@
 
   // dockEntries keeps the pinned order, then appends the open windows' apps so
   // the dock always shows what is actually running.
-  function dockEntries(available: DockApp[], selected: DockApp[], open: string[]): DockApp[] {
+  function dockEntries(available: DockApp[], selected: DockApp[], open: OpenWindow[]): DockApp[] {
     const shown = [...selected]
     const taken = new Set(shown.map((app) => app.id.toLowerCase()))
-    for (const wmClass of open) {
-      const app = entryForClass(available, wmClass)
+    for (const window of open) {
+      const app = entryForWindow(available, window)
       if (!taken.has(app.id.toLowerCase())) {
         taken.add(app.id.toLowerCase())
         shown.push(app)
@@ -194,23 +201,74 @@
     return null
   }
 
-  // entryForClass resolves a window class against the desktop-entry catalog;
-  // windows whose class matches nothing still get a tile, named after the class.
-  function entryForClass(available: DockApp[], wmClass: string): DockApp {
+  // entryForWindow resolves a window against the desktop-entry catalog. The
+  // class is tried against StartupWMClass, the entry id and the name; failing
+  // that the window's process name is tried against each entry's command, so
+  // a terminal started with its own class keeps a tile of its own but borrows
+  // the terminal's icon. What matches nothing gets a generic icon, or Steam's
+  // for a Steam game.
+  function entryForWindow(available: DockApp[], window: OpenWindow): DockApp {
+    const byClass = findByClass(available, window.wmClass)
+    if (byClass !== null) {
+      return byClass
+    }
+    const fallback: DockApp = {
+      id: window.wmClass,
+      name: window.wmClass,
+      exec: '',
+      icon: iconForUnknown(window.wmClass),
+      wmClass: window.wmClass,
+    }
+    const byCommand = findByCommand(available, window.command)
+    if (byCommand !== null) {
+      fallback.exec = byCommand.exec
+      fallback.icon = byCommand.icon
+    }
+    return fallback
+  }
+
+  function findByClass(available: DockApp[], wmClass: string): DockApp | null {
     const needle = wmClass.toLowerCase()
     for (const app of available) {
       if (matchesClass(app, needle)) {
         return app
       }
     }
-    return { id: wmClass, name: wmClass, exec: '', icon: wmClass, wmClass }
+    return null
   }
 
   function matchesClass(app: DockApp, needle: string): boolean {
-    if (app.wmClass !== '') {
-      return app.wmClass.toLowerCase() === needle
+    return (
+      app.wmClass.toLowerCase() === needle ||
+      app.id.toLowerCase() === needle ||
+      app.name.toLowerCase() === needle
+    )
+  }
+
+  // The kernel truncates a process name to 15 characters, so the command's
+  // basename is compared by prefix.
+  function findByCommand(available: DockApp[], command: string): DockApp | null {
+    if (command === '') {
+      return null
     }
-    return app.id.toLowerCase() === needle || app.name.toLowerCase() === needle
+    for (const app of available) {
+      if (commandBasename(app.exec).startsWith(command)) {
+        return app
+      }
+    }
+    return null
+  }
+
+  function commandBasename(exec: string): string {
+    const first = exec.trim().split(/\s+/)[0]
+    return first.slice(first.lastIndexOf('/') + 1)
+  }
+
+  function iconForUnknown(wmClass: string): string {
+    if (wmClass.startsWith('steam_app_')) {
+      return STEAM_ICON
+    }
+    return GENERIC_ICON
   }
 
   function openWindowsOf(data: unknown): OpenWindow[] {
@@ -231,7 +289,13 @@
     if (typeof record.class !== 'string' || record.class === '' || typeof record.address !== 'string') {
       return null
     }
-    const window: OpenWindow = { address: record.address, wmClass: record.class, title: '', workspace: '' }
+    const window: OpenWindow = {
+      address: record.address,
+      wmClass: record.class,
+      title: '',
+      workspace: '',
+      command: commandOfPid(record.pid),
+    }
     if (typeof record.title === 'string') {
       window.title = record.title
     }
@@ -240,6 +304,17 @@
       window.workspace = workspace.name
     }
     return window
+  }
+
+  function commandOfPid(pid: unknown): string {
+    if (typeof pid !== 'number' || pid <= 0) {
+      return ''
+    }
+    const comm = readTextFile(`/proc/${pid}/comm`)
+    if (comm === null) {
+      return ''
+    }
+    return comm.trim()
   }
 
   function openClassesOf(windows: OpenWindow[]): string[] {
