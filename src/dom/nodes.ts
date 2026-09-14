@@ -388,25 +388,6 @@ export class SElement extends SNode {
     this.setAttribute("class", value);
   }
 
-  // Svelte writes `value` and `checked` as DOM properties rather than
-  // attributes — `set_value(element, v)` is `element.value = v` — so without
-  // these the two most common control attributes would never reach a widget.
-  get value(): unknown {
-    return this.getAttribute("value");
-  }
-
-  set value(value: unknown) {
-    this.setAttribute("value", value);
-  }
-
-  get checked(): unknown {
-    return this.getAttribute("checked");
-  }
-
-  set checked(value: unknown) {
-    this.setAttribute("checked", value);
-  }
-
   get classList() {
     return {
       toggle: (name: string, force?: boolean) => {
@@ -456,6 +437,62 @@ export class SElement extends SNode {
     }
     return copy;
   }
+}
+
+// Svelte writes some names as DOM properties rather than attributes —
+// `element.value = v`, `element.open = true` — because that is how a browser
+// element behaves. Nothing here is a browser element, so each of those names
+// gets an accessor that turns the write back into an attribute the widget
+// layer sees. The names are Svelte's DOM_BOOLEAN_ATTRIBUTES plus the
+// camelCase aliases in its ATTRIBUTE_ALIASES, plus the value-like ones its
+// runtime sets by property; the key is the property Svelte writes, the value
+// the attribute a widget handles.
+const PROPERTY_ATTRIBUTES: Record<string, string> = {
+  value: "value",
+  checked: "checked",
+  selected: "selected",
+  muted: "muted",
+  volume: "volume",
+  open: "open",
+  async: "async",
+  autofocus: "autofocus",
+  autoplay: "autoplay",
+  controls: "controls",
+  default: "default",
+  disabled: "disabled",
+  indeterminate: "indeterminate",
+  inert: "inert",
+  loop: "loop",
+  multiple: "multiple",
+  required: "required",
+  reversed: "reversed",
+  seamless: "seamless",
+  webkitdirectory: "webkitdirectory",
+  defer: "defer",
+  formNoValidate: "formnovalidate",
+  isMap: "ismap",
+  noModule: "nomodule",
+  playsInline: "playsinline",
+  readOnly: "readonly",
+  defaultValue: "defaultvalue",
+  defaultChecked: "defaultchecked",
+  srcObject: "srcobject",
+  noValidate: "novalidate",
+  allowFullscreen: "allowfullscreen",
+  disablePictureInPicture: "disablepictureinpicture",
+  disableRemotePlayback: "disableremoteplayback",
+};
+
+for (const [property, attribute] of Object.entries(PROPERTY_ATTRIBUTES)) {
+  Object.defineProperty(SElement.prototype, property, {
+    get(this: SElement): unknown {
+      return this.getAttribute(attribute);
+    },
+    set(this: SElement, value: unknown) {
+      this.setAttribute(attribute, value);
+    },
+    configurable: true,
+  });
 }
 
 // Assigned by parse.ts to keep the parser out of this module's imports.
