@@ -3,6 +3,7 @@
   import type { ViewProps } from '../../host/plugins/views'
   import { recordOf } from '../../lib/record'
   import type Gdk from 'gi://Gdk?version=4.0'
+  import { pressOf, SECONDARY_BUTTON } from './gestures'
 
   // The dock: a centred floating panel of launchers, hidden below the screen
   // edge until the pointer enters the hot strip along it.
@@ -18,7 +19,8 @@
   // dock.pinned (ids or names matched against the desktop-entry catalog), or
   // from dock.apps, which carries whole records. Clicking a running app focuses
   // its window instead of launching a second instance; with several windows
-  // open it raises a panel of window previews to pick from.
+  // open it raises a panel of window previews to pick from. A right click
+  // raises the panel for any running app, one window or many.
 
   interface DockApp {
     id: string
@@ -34,7 +36,7 @@
   const PREVIEW_WIDTH = 224
   const PREVIEW_HEIGHT = 140
   // How long the pointer rests on a tile before its windows are captured, so
-  // a sweep across the dock does not capture every app on the way.
+  // a sweep across the dock does not capture every running app on the way.
   const PRECAPTURE_DELAY_MS = 120
   // Long enough to cross onto another output and back without the dock going.
   const COLLAPSE_DELAY_MS = 400
@@ -268,16 +270,20 @@
     return openKeys.has(app.id.toLowerCase())
   }
 
-  async function activate(app: DockApp, index: number): Promise<void> {
+  async function activate(app: DockApp, index: number, button: number): Promise<void> {
     const windows = windowsOf(app)
-    if (windows.length === 1) {
+    if (windows.length === 0) {
+      await launch(app)
+      return
+    }
+    if (windows.length === 1 && button !== SECONDARY_BUTTON) {
       focusWindow(windows[0])
       return
     }
-    if (windows.length > 1) {
-      await openPreviews(index, windows)
-      return
-    }
+    await openPreviews(index, windows)
+  }
+
+  async function launch(app: DockApp): Promise<void> {
     startLaunch(app.id)
     const reply = recordOf(await bus.call('apps:launch', { command: app.exec }))
     if (reply.error === undefined) {
@@ -353,7 +359,7 @@
   function schedulePrecapture(app: DockApp): void {
     cancelPrecapture()
     const windows = windowsOf(app)
-    if (windows.length < 2) {
+    if (windows.length === 0) {
       return
     }
     precaptureTimer = setTimeout(() => {
@@ -521,7 +527,7 @@
             tooltip={app.name}
             onhoverstart={() => hover(index)}
             onhoverend={() => unhover(index)}
-            onpress={() => void activate(app, index)}
+            onpress={(event) => void activate(app, index, pressOf(event).button)}
           >
             <!-- The preview panel: one entry per open window of this app.
                  A popover is its own surface, so it can rise above the 96px
