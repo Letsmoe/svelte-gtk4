@@ -21,7 +21,7 @@ import { request, streamLines } from '../../gjs/socket.js'
 //   hypr:layerrule {namespace, blur?, blurPopups?, ignoreAlpha?}
 //                                            → {ok} | {error}
 //   hypr:request  {command}                  → {reply} | {error}
-//   hypr:capture  {address, width}           → {texture} | {error}   in-process only
+//   hypr:capture  {address, width, height}   → {texture} | {error}   in-process only
 //
 // It also provides the in-kernel "hypr" service for other extensions.
 
@@ -307,14 +307,14 @@ async function runRequest(client: HyprClient, data: unknown): Promise<unknown> {
 
 // captureWindow grabs one frame of a window through the windowcapture helper
 // (tools/windowcapture, speaking hyprland-toplevel-export-v1) and returns it
-// as a Gdk.Texture at most `width` pixels wide. The helper streams raw RGBA
+// as a Gdk.Texture fitting inside `width` × `height`. The helper streams raw RGBA
 // over stdout — a 12-byte header of width, height and stride, then the rows —
 // so neither side encodes anything and nothing touches the disk. A texture is
 // a live object, so the reply is only meaningful to an in-process caller. The
 // helper is looked up next to the shell first, then on PATH as
 // neoshell-windowcapture.
 async function captureWindow(data: unknown): Promise<unknown> {
-  const args = data as { address?: string; width?: number }
+  const args = data as { address?: string; width?: number; height?: number }
   if (typeof args.address !== 'string' || !/^(0x)?[0-9a-f]+$/i.test(args.address)) {
     return { error: 'address is required' }
   }
@@ -323,7 +323,12 @@ async function captureWindow(data: unknown): Promise<unknown> {
     return { error: 'windowcapture helper is not built (run task neoshell:tools)' }
   }
   try {
-    const frame = await runHelper([helper, args.address, String(numberOr(args.width, 240))])
+    const frame = await runHelper([
+      helper,
+      args.address,
+      String(numberOr(args.width, 240)),
+      String(numberOr(args.height, 240)),
+    ])
     return { texture: textureOf(frame) }
   } catch (error) {
     return { error: String(error) }

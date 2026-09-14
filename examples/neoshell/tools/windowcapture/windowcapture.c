@@ -1,13 +1,13 @@
 // windowcapture: grab one frame of a Hyprland window through
 // hyprland-toplevel-export-v1 and write it as raw RGBA to stdout.
 //
-//   windowcapture <address> [max-width]
+//   windowcapture <address> [max-width [max-height]]
 //
 // <address> is the window address as printed by `hyprctl clients` (with or
 // without the 0x prefix). The frame is the window's own content: occluded
 // windows and windows on hidden workspaces capture fine, which is what a
-// screen-region grab cannot do. With [max-width] the image is box-filtered
-// down by an integer factor so it is at most that wide.
+// screen-region grab cannot do. With [max-width] and [max-height] the image
+// is box-filtered down by one integer factor so it fits inside both.
 //
 // Output: three little-endian uint32 (width, height, stride in bytes),
 // then height rows of stride bytes, R8G8B8A8. No encoding on either side.
@@ -236,10 +236,18 @@ static int write_all(const void *data, size_t size) {
 // write_rgba box-filters by an integer factor and streams the rows out. The
 // source rows are walked in memory order; a y-inverted frame is walked from
 // the bottom.
-static int write_rgba(const struct capture *capture, uint32_t max_width) {
-  uint32_t factor = 1;
-  if (max_width > 0 && capture->width > max_width) {
-    factor = (capture->width + max_width - 1) / max_width;
+static uint32_t factor_for(uint32_t size, uint32_t max) {
+  if (max == 0 || size <= max) {
+    return 1;
+  }
+  return (size + max - 1) / max;
+}
+
+static int write_rgba(const struct capture *capture, uint32_t max_width, uint32_t max_height) {
+  uint32_t factor = factor_for(capture->width, max_width);
+  uint32_t by_height = factor_for(capture->height, max_height);
+  if (by_height > factor) {
+    factor = by_height;
   }
   uint32_t out_width = capture->width / factor;
   uint32_t out_height = capture->height / factor;
@@ -295,16 +303,20 @@ static int write_rgba(const struct capture *capture, uint32_t max_width) {
 }
 
 int main(int argc, char **argv) {
-  if (argc < 2 || argc > 3) {
-    fprintf(stderr, "usage: windowcapture <address> [max-width]\n");
+  if (argc < 2 || argc > 4) {
+    fprintf(stderr, "usage: windowcapture <address> [max-width [max-height]]\n");
     return 2;
   }
   // The protocol takes the low 32 bits of the window address.
   uint64_t address = strtoull(argv[1], NULL, 16);
   uint32_t handle = (uint32_t)address;
   uint32_t max_width = 0;
-  if (argc == 3) {
+  uint32_t max_height = 0;
+  if (argc >= 3) {
     max_width = (uint32_t)strtoul(argv[2], NULL, 10);
+  }
+  if (argc == 4) {
+    max_height = (uint32_t)strtoul(argv[3], NULL, 10);
   }
 
   struct wl_display *display = wl_display_connect(NULL);
@@ -329,7 +341,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "windowcapture: the compositor could not capture %s\n", argv[1]);
     return 1;
   }
-  int status = write_rgba(&capture, max_width);
+  int status = write_rgba(&capture, max_width, max_height);
 
   hyprland_toplevel_export_frame_v1_destroy(capture.frame);
   wl_buffer_destroy(capture.buffer);

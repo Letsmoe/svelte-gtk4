@@ -390,7 +390,13 @@
   }
 
   async function captureWindow(window: OpenWindow): Promise<Gdk.Texture | null> {
-    const reply = recordOf(await bus.call('hypr:capture', { address: window.address, width: PREVIEW_WIDTH }))
+    const reply = recordOf(
+      await bus.call('hypr:capture', {
+        address: window.address,
+        width: PREVIEW_WIDTH,
+        height: PREVIEW_HEIGHT,
+      }),
+    )
     if (reply.texture !== undefined && reply.texture !== null) {
       return reply.texture as Gdk.Texture
     }
@@ -543,18 +549,22 @@
                 {#each windowsOf(app) as window (window.address)}
                   <gtkbutton class="dock-preview" frame={false} onclicked={() => focusWindow(window)}>
                     <gtkbox orientation="vertical" spacing={4} width={PREVIEW_WIDTH}>
-                      <gtkbox class="dock-preview-frame" height={PREVIEW_HEIGHT} clip halign="fill">
+                      <!-- The frame is an overlay whose only measured child is
+                           an empty box of the frame's size: the picture sits on
+                           top unmeasured, so a tall window cannot stretch the
+                           entry, and contain fit letterboxes it inside. -->
+                      <gtkoverlay class="dock-preview-frame" clip>
+                        <gtkbox width={PREVIEW_WIDTH} height={PREVIEW_HEIGHT}></gtkbox>
                         {#if previews[window.address] !== undefined}
                           <gtkpicture
+                            overlay
                             paintable={previews[window.address]}
                             fit="contain"
-                            hexpand
-                            vexpand
                           ></gtkpicture>
                         {:else}
-                          <gtkicon icon={app.icon} size={48} hexpand vexpand halign="center" valign="center"></gtkicon>
+                          <gtkicon overlay icon={app.icon} size={48} halign="center" valign="center"></gtkicon>
                         {/if}
-                      </gtkbox>
+                      </gtkoverlay>
                       <gtklabel class="dock-preview-title" ellipsize="end" xalign={0}>{window.title}</gtklabel>
                       <gtklabel class="dock-preview-workspace" xalign={0}>{workspaceLabel(window)}</gtklabel>
                     </gtkbox>
