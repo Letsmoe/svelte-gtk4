@@ -260,10 +260,12 @@ async function runRequest(client: HyprClient, data: unknown): Promise<unknown> {
 
 // captureWindow grabs one frame of a window through the windowcapture helper
 // (tools/windowcapture, speaking hyprland-toplevel-export-v1) and returns it
-// as a Gdk.Texture at most `width` pixels wide. The PNG streams over the
-// helper's stdout and never touches the disk; a texture is a live object, so
-// the reply is only meaningful to an in-process caller. The helper is looked
-// up next to the shell first, then on PATH as neoshell-windowcapture.
+// as a Gdk.Texture at most `width` pixels wide. The helper streams raw RGBA
+// over stdout — a 12-byte header of width, height and stride, then the rows —
+// so neither side encodes anything and nothing touches the disk. A texture is
+// a live object, so the reply is only meaningful to an in-process caller. The
+// helper is looked up next to the shell first, then on PATH as
+// neoshell-windowcapture.
 async function captureWindow(data: unknown): Promise<unknown> {
   const args = data as { address?: string; width?: number }
   if (typeof args.address !== 'string' || !/^(0x)?[0-9a-f]+$/i.test(args.address)) {
@@ -274,11 +276,29 @@ async function captureWindow(data: unknown): Promise<unknown> {
     return { error: 'windowcapture helper is not built (run task neoshell:tools)' }
   }
   try {
-    const png = await runHelper([helper, args.address, '-', String(numberOr(args.width, 240))])
-    return { texture: Gdk.Texture.new_from_bytes(png) }
+    const frame = await runHelper([helper, args.address, String(numberOr(args.width, 240))])
+    return { texture: textureOf(frame) }
   } catch (error) {
     return { error: String(error) }
   }
+}
+
+const FRAME_HEADER_BYTES = 12
+
+function textureOf(frame: GLib.Bytes): Gdk.Texture {
+  const raw = frame.toArray()
+  if (raw.length < FRAME_HEADER_BYTES) {
+    throw new Error('windowcapture wrote no frame')
+  }
+  const header = new DataView(raw.buffer, raw.byteOffset, FRAME_HEADER_BYTES)
+  const width = header.getUint32(0, true)
+  const height = header.getUint32(4, true)
+  const stride = header.getUint32(8, true)
+  if (raw.length !== FRAME_HEADER_BYTES + height * stride) {
+    throw new Error('windowcapture wrote a truncated frame')
+  }
+  const pixels = new GLib.Bytes(raw.subarray(FRAME_HEADER_BYTES))
+  return Gdk.MemoryTexture.new(width, height, Gdk.MemoryFormat.R8G8B8A8, pixels, stride)
 }
 
 function findCaptureHelper(): string | null {
