@@ -33,6 +33,9 @@
   const HOT_STRIP_PIXELS = 4
   const PREVIEW_WIDTH = 224
   const PREVIEW_HEIGHT = 140
+  // How long the pointer rests on a tile before its windows are captured, so
+  // a sweep across the dock does not capture every app on the way.
+  const PRECAPTURE_DELAY_MS = 120
   // Long enough to cross onto another output and back without the dock going.
   const COLLAPSE_DELAY_MS = 400
 
@@ -63,9 +66,12 @@
   let hoveredIndex = $state(-1)
   let launching = $state<ReadonlySet<string>>(new Set())
   // Which tile's preview panel is up, and the captured frame per window
-  // address; a window without a capture shows the app icon instead.
+  // address; a window without a capture shows the app icon instead. Frames
+  // are captured while the pointer rests on a tile, so the panel opens with
+  // them already in hand, and refreshed once more when it opens.
   let previewIndex = $state(-1)
   let previews = $state<Record<string, Gdk.Texture>>({})
+  let precaptureTimer: number | null = null
 
   // Either half of the hot area keeps the dock open, so travelling from the
   // strip into the panel never passes through a moment where neither is under
@@ -85,6 +91,7 @@
     subscribeTo(bus, 'hypr.windows', (message) => {
       openWindows = openWindowsOf(message.data)
       stopLandedLaunches()
+      dropClosedPreviews()
     }),
   )
 
@@ -317,21 +324,63 @@
     return openWindows.filter((window) => window.wmClass.toLowerCase() === needle)
   }
 
-  // Every window is captured before the panel goes up, so it opens complete
-  // rather than filling in tile by tile. A failed capture leaves that entry on
-  // the app icon.
+  // With every frame already captured on hover the panel opens at once and
+  // the frames refresh behind it; otherwise it waits for the first capture so
+  // it opens complete rather than filling in tile by tile. A failed capture
+  // leaves that entry on the app icon.
   async function openPreviews(index: number, windows: OpenWindow[]): Promise<void> {
-    const captured: Record<string, Gdk.Texture> = {}
+    cancelPrecapture()
+    if (windows.every((window) => previews[window.address] !== undefined)) {
+      previewIndex = index
+      void captureAll(windows)
+      return
+    }
+    await captureAll(windows)
+    previewIndex = index
+  }
+
+  async function captureAll(windows: OpenWindow[]): Promise<void> {
     await Promise.all(
       windows.map(async (window) => {
         const texture = await captureWindow(window)
         if (texture !== null) {
-          captured[window.address] = texture
+          previews = { ...previews, [window.address]: texture }
         }
       }),
     )
-    previews = captured
-    previewIndex = index
+  }
+
+  function schedulePrecapture(app: DockApp): void {
+    cancelPrecapture()
+    const windows = windowsOf(app)
+    if (windows.length < 2) {
+      return
+    }
+    precaptureTimer = setTimeout(() => {
+      precaptureTimer = null
+      void captureAll(windows)
+    }, PRECAPTURE_DELAY_MS)
+  }
+
+  function cancelPrecapture(): void {
+    if (precaptureTimer === null) {
+      return
+    }
+    clearTimeout(precaptureTimer)
+    precaptureTimer = null
+  }
+
+  // Frames of windows that have gone are dropped, so a closed window's
+  // texture is not held for the rest of the session.
+  function dropClosedPreviews(): void {
+    const open = new Set(openWindows.map((window) => window.address))
+    const kept: Record<string, Gdk.Texture> = {}
+    for (const [address, texture] of Object.entries(previews)) {
+      if (open.has(address)) {
+        kept[address] = texture
+      }
+    }
+    previews = kept
   }
 
   async function captureWindow(window: OpenWindow): Promise<Gdk.Texture | null> {
@@ -389,9 +438,11 @@
 
   function hover(index: number): void {
     hoveredIndex = index
+    schedulePrecapture(entries[index])
   }
 
   function unhover(index: number): void {
+    cancelPrecapture()
     if (hoveredIndex === index) {
       hoveredIndex = -1
     }
@@ -440,6 +491,7 @@
   }
 
   $effect(() => cancelCollapse)
+  $effect(() => cancelPrecapture)
 </script>
 
 <!-- The strip and the panel each watch the pointer for themselves rather than
