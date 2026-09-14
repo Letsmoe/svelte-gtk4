@@ -270,13 +270,33 @@ async function captureWindow(data: unknown): Promise<unknown> {
   if (helper === null) {
     return { error: 'windowcapture helper is not built (run task neoshell:tools)' }
   }
-  const path = GLib.build_filenamev([GLib.get_tmp_dir(), `neoshell-window-${args.address}.png`])
+  // A fresh name per capture: a picture bound to an unchanged path would
+  // keep showing the previous frame.
+  const prefix = `neoshell-window-${args.address.toLowerCase()}-`
+  removeStaleCaptures(prefix)
+  const path = GLib.build_filenamev([GLib.get_tmp_dir(), `${prefix}${Date.now()}.png`])
   try {
     await runHelper([helper, args.address, path, String(numberOr(args.width, 240))])
   } catch (error) {
     return { error: String(error) }
   }
   return { path }
+}
+
+function removeStaleCaptures(prefix: string): void {
+  const tmp = GLib.get_tmp_dir()
+  let dir: GLib.Dir
+  try {
+    dir = GLib.Dir.open(tmp, 0)
+  } catch {
+    return
+  }
+  for (let name = dir.read_name(); name !== null; name = dir.read_name()) {
+    if (name.startsWith(prefix)) {
+      GLib.unlink(GLib.build_filenamev([tmp, name]))
+    }
+  }
+  dir.close()
 }
 
 function findCaptureHelper(): string | null {

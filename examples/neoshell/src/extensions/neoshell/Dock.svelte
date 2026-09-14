@@ -16,7 +16,8 @@
   // (hypr.windows) that is not already pinned. Pins come from the config key
   // dock.pinned (ids or names matched against the desktop-entry catalog), or
   // from dock.apps, which carries whole records. Clicking a running app focuses
-  // its window instead of launching a second instance.
+  // its window instead of launching a second instance; with several windows
+  // open it raises a panel of window previews to pick from.
 
   interface DockApp {
     id: string
@@ -29,6 +30,8 @@
   const LAUNCH_TIMEOUT_MS = 15000
   const ICON_PIXELS = 44
   const HOT_STRIP_PIXELS = 4
+  const PREVIEW_WIDTH = 224
+  const PREVIEW_HEIGHT = 140
   // Long enough to cross onto another output and back without the dock going.
   const COLLAPSE_DELAY_MS = 400
 
@@ -47,6 +50,8 @@
   interface OpenWindow {
     address: string
     wmClass: string
+    title: string
+    workspace: string
   }
 
   let catalog = $state<DockApp[]>([])
@@ -56,6 +61,10 @@
   let revealed = $state(false)
   let hoveredIndex = $state(-1)
   let launching = $state<ReadonlySet<string>>(new Set())
+  // Which tile's preview panel is up, and the captured frame per window
+  // address; a window without a capture shows the app icon instead.
+  let previewIndex = $state(-1)
+  let previews = $state<Record<string, string>>({})
 
   // Either half of the hot area keeps the dock open, so travelling from the
   // strip into the panel never passes through a moment where neither is under
@@ -200,12 +209,27 @@
     }
     const windows: OpenWindow[] = []
     for (const raw of data) {
-      const record = recordOf(raw)
-      if (typeof record.class === 'string' && record.class !== '' && typeof record.address === 'string') {
-        windows.push({ address: record.address, wmClass: record.class })
+      const window = openWindowOf(recordOf(raw))
+      if (window !== null) {
+        windows.push(window)
       }
     }
     return windows
+  }
+
+  function openWindowOf(record: Record<string, unknown>): OpenWindow | null {
+    if (typeof record.class !== 'string' || record.class === '' || typeof record.address !== 'string') {
+      return null
+    }
+    const window: OpenWindow = { address: record.address, wmClass: record.class, title: '', workspace: '' }
+    if (typeof record.title === 'string') {
+      window.title = record.title
+    }
+    const workspace = recordOf(record.workspace)
+    if (typeof workspace.name === 'string') {
+      window.workspace = workspace.name
+    }
+    return window
   }
 
   function openClassesOf(windows: OpenWindow[]): string[] {
@@ -236,10 +260,14 @@
     return openKeys.has(app.id.toLowerCase())
   }
 
-  async function activate(app: DockApp): Promise<void> {
-    const window = openWindowOf(app)
-    if (window !== null) {
-      void bus.call('hypr:dispatch', { dispatcher: 'focuswindow', arg: `address:${window.address}` })
+  async function activate(app: DockApp, index: number): Promise<void> {
+    const windows = windowsOf(app)
+    if (windows.length === 1) {
+      focusWindow(windows[0])
+      return
+    }
+    if (windows.length > 1) {
+      await openPreviews(index, windows)
       return
     }
     startLaunch(app.id)
@@ -275,17 +303,60 @@
     }
   }
 
-  // The window is addressed by its Hyprland handle: `focuswindow class:…` is a
-  // case-sensitive regex, and a desktop entry's StartupWMClass rarely spells
-  // the class the way the window reports it.
-  function openWindowOf(app: DockApp): OpenWindow | null {
+  // A window is addressed by its Hyprland handle: a class match is a
+  // case-sensitive regex there, and a desktop entry's StartupWMClass rarely
+  // spells the class the way the window reports it.
+  function focusWindow(window: OpenWindow): void {
+    previewIndex = -1
+    void bus.call('hypr:dispatch', { dispatcher: 'focuswindow', arg: `address:${window.address}` })
+  }
+
+  function windowsOf(app: DockApp): OpenWindow[] {
     const needle = focusClass(app).toLowerCase()
-    for (const window of openWindows) {
-      if (window.wmClass.toLowerCase() === needle) {
-        return window
-      }
+    return openWindows.filter((window) => window.wmClass.toLowerCase() === needle)
+  }
+
+  // Every window is captured before the panel goes up, so it opens complete
+  // rather than filling in tile by tile. A failed capture leaves that entry on
+  // the app icon.
+  async function openPreviews(index: number, windows: OpenWindow[]): Promise<void> {
+    const captured: Record<string, string> = {}
+    await Promise.all(
+      windows.map(async (window) => {
+        const path = await captureWindow(window)
+        if (path !== null) {
+          captured[window.address] = path
+        }
+      }),
+    )
+    previews = captured
+    previewIndex = index
+  }
+
+  async function captureWindow(window: OpenWindow): Promise<string | null> {
+    const reply = recordOf(await bus.call('hypr:capture', { address: window.address, width: PREVIEW_WIDTH }))
+    if (typeof reply.path === 'string') {
+      return reply.path
     }
+    console.warn(`dock: no preview for ${window.title}:`, reply.error)
     return null
+  }
+
+  function closePreviews(index: number): void {
+    if (previewIndex !== index) {
+      return
+    }
+    previewIndex = -1
+    if (!overStrip && !overPanel) {
+      scheduleCollapse()
+    }
+  }
+
+  function workspaceLabel(window: OpenWindow): string {
+    if (window.workspace === '') {
+      return ''
+    }
+    return `Workspace ${window.workspace}`
   }
 
   function focusClass(app: DockApp): string {
@@ -351,7 +422,7 @@
     cancelCollapse()
     collapseTimer = setTimeout(() => {
       collapseTimer = null
-      if (overStrip || overPanel) {
+      if (overStrip || overPanel || previewIndex >= 0) {
         return
       }
       revealed = false
@@ -397,8 +468,40 @@
             tooltip={app.name}
             onhoverstart={() => hover(index)}
             onhoverend={() => unhover(index)}
-            onpress={() => void activate(app)}
+            onpress={() => void activate(app, index)}
           >
+            <!-- The preview panel: one entry per open window of this app.
+                 A popover is its own surface, so it can rise above the 96px
+                 dock window. -->
+            <gtkpopover
+              place="popover"
+              position="top"
+              open={previewIndex === index}
+              onclosed={() => closePreviews(index)}
+            >
+              <gtkbox class="dock-previews" spacing={8}>
+                {#each windowsOf(app) as window (window.address)}
+                  <gtkbutton class="dock-preview" frame={false} onclicked={() => focusWindow(window)}>
+                    <gtkbox orientation="vertical" spacing={6} width={PREVIEW_WIDTH}>
+                      <gtkbox class="dock-preview-frame" height={PREVIEW_HEIGHT} clip>
+                        {#if previews[window.address] !== undefined}
+                          <gtkpicture
+                            file={previews[window.address]}
+                            fit="contain"
+                            hexpand
+                            vexpand
+                          ></gtkpicture>
+                        {:else}
+                          <gtkicon icon={app.icon} size={48} hexpand vexpand halign="center" valign="center"></gtkicon>
+                        {/if}
+                      </gtkbox>
+                      <gtklabel class="dock-preview-title" ellipsize="end" xalign={0}>{window.title}</gtklabel>
+                      <gtklabel class="dock-preview-workspace" xalign={0}>{workspaceLabel(window)}</gtklabel>
+                    </gtkbox>
+                  </gtkbutton>
+                {/each}
+              </gtkbox>
+            </gtkpopover>
             <!-- A box paints its children in order, so a dot placed after the
                  icon would draw over it once the icon magnifies. The icon is
                  an overlay above a column that only reserves its slot. -->
