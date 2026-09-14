@@ -189,8 +189,8 @@ class ViewTreePublisher {
   }
 
   // The compositor blurs by layer namespace, and the shell names each window
-  // "neoshell.<node id>" — so asking for blur is a keyword per node, published
-  // for whatever compositor bridge is listening.
+  // "neoshell.<node id>" — so asking for blur is a layer rule per node,
+  // published for whatever compositor bridge is listening.
   private requestBlur(tree: TreeNode[]): void {
     for (const node of tree) {
       this.requestBlurForNode(node)
@@ -201,10 +201,11 @@ class ViewTreePublisher {
     if (argsOf(node).blur !== true || node.id === undefined) {
       return
     }
-    this.bus.publish('hypr:keyword', { name: 'layerrule', value: `blur,neoshell.${node.id}` })
-    this.bus.publish('hypr:keyword', {
-      name: 'layerrule',
-      value: `ignorealpha 0.1,neoshell.${node.id}`,
+    this.bus.publish('hypr:layerrule', {
+      namespace: `neoshell.${node.id}`,
+      blur: true,
+      blurPopups: true,
+      ignoreAlpha: 0.1,
     })
   }
 }

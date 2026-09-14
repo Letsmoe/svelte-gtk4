@@ -18,6 +18,8 @@ import { request, streamLines } from '../../gjs/socket.js'
 //   hypr.event                               raw compositor events, live
 //   hypr:dispatch {dispatcher, arg}          → {ok} | {error}
 //   hypr:keyword  {name, value}              → {ok} | {error}
+//   hypr:layerrule {namespace, blur?, blurPopups?, ignoreAlpha?}
+//                                            → {ok} | {error}
 //   hypr:request  {command}                  → {reply} | {error}
 //   hypr:capture  {address, width}           → {texture} | {error}   in-process only
 //
@@ -51,6 +53,7 @@ const hyprExtension: Plugin.Object<HyprConfig | undefined> = {
     )
     registerFunction(context, bus, 'hypr:dispatch', (data) => runDispatch(client, data))
     registerFunction(context, bus, 'hypr:keyword', (data) => runKeyword(client, data))
+    registerFunction(context, bus, 'hypr:layerrule', (data) => runLayerRule(client, data))
     registerFunction(context, bus, 'hypr:request', (data) => runRequest(client, data))
     registerFunction(context, bus, 'hypr:capture', (data) => captureWindow(data))
     context.provide('hypr', client)
@@ -129,6 +132,12 @@ export class HyprClient {
 
   keyword(name: string, value: string): Promise<string> {
     return this.request(`keyword ${name} ${value}`)
+  }
+
+  // Hyprland ≥ 0.56 takes rules as Lua through `eval`; `keyword layerrule`
+  // is refused by the non-legacy config parser.
+  eval(lua: string): Promise<string> {
+    return this.request(`eval ${lua}`)
   }
 }
 
@@ -248,6 +257,44 @@ async function runKeyword(client: HyprClient, data: unknown): Promise<unknown> {
   }
   await client.keyword(args.name, stringOrEmpty(args.value))
   return { ok: true }
+}
+
+interface LayerRuleArgs {
+  namespace?: string
+  blur?: boolean
+  blurPopups?: boolean
+  ignoreAlpha?: number
+}
+
+async function runLayerRule(client: HyprClient, data: unknown): Promise<unknown> {
+  const args = data as LayerRuleArgs
+  if (typeof args.namespace !== 'string' || args.namespace === '') {
+    return { error: 'namespace is required' }
+  }
+  const fields = [`match = { namespace = ${luaString(`^${escapeRegex(args.namespace)}$`)} }`]
+  if (args.blur === true) {
+    fields.push('blur = true')
+  }
+  if (args.blurPopups === true) {
+    fields.push('blur_popups = true')
+  }
+  if (typeof args.ignoreAlpha === 'number') {
+    fields.push(`ignore_alpha = ${args.ignoreAlpha}`)
+  }
+  let reply: string
+  try {
+    reply = await client.eval(`hl.layer_rule({ ${fields.join(', ')} })`)
+  } catch (error) {
+    return { error: String(error) }
+  }
+  if (reply.startsWith('error')) {
+    return { error: reply }
+  }
+  return { ok: true }
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function runRequest(client: HyprClient, data: unknown): Promise<unknown> {

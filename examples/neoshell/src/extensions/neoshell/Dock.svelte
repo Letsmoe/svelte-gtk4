@@ -33,8 +33,8 @@
   const LAUNCH_TIMEOUT_MS = 15000
   const ICON_PIXELS = 44
   const HOT_STRIP_PIXELS = 4
-  const PREVIEW_WIDTH = 224
-  const PREVIEW_HEIGHT = 140
+  const PREVIEW_WIDTH = 280
+  const PREVIEW_HEIGHT = 170
   // How long the pointer rests on a tile before its windows are captured, so
   // a sweep across the dock does not capture every running app on the way.
   const PRECAPTURE_DELAY_MS = 120
@@ -533,6 +533,7 @@
                  A popover is its own surface, so it can rise above the 96px
                  dock window. -->
             <gtkpopover
+              class="dock-preview-popover"
               place="popover"
               position="top"
               open={previewIndex === index}
@@ -541,8 +542,8 @@
               <gtkbox class="dock-previews" spacing={8}>
                 {#each windowsOf(app) as window (window.address)}
                   <gtkbutton class="dock-preview" frame={false} onclicked={() => focusWindow(window)}>
-                    <gtkbox orientation="vertical" spacing={6} width={PREVIEW_WIDTH}>
-                      <gtkbox class="dock-preview-frame" height={PREVIEW_HEIGHT} clip>
+                    <gtkbox orientation="vertical" spacing={4} width={PREVIEW_WIDTH}>
+                      <gtkbox class="dock-preview-frame" height={PREVIEW_HEIGHT} clip halign="fill">
                         {#if previews[window.address] !== undefined}
                           <gtkpicture
                             paintable={previews[window.address]}
