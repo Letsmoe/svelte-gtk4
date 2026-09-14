@@ -2,6 +2,7 @@
   import { subscribeTo } from '../../lib/bus'
   import type { ViewProps } from '../../host/plugins/views'
   import { recordOf } from '../../lib/record'
+  import type Gdk from 'gi://Gdk?version=4.0'
 
   // The dock: a centred floating panel of launchers, hidden below the screen
   // edge until the pointer enters the hot strip along it.
@@ -64,7 +65,7 @@
   // Which tile's preview panel is up, and the captured frame per window
   // address; a window without a capture shows the app icon instead.
   let previewIndex = $state(-1)
-  let previews = $state<Record<string, string>>({})
+  let previews = $state<Record<string, Gdk.Texture>>({})
 
   // Either half of the hot area keeps the dock open, so travelling from the
   // strip into the panel never passes through a moment where neither is under
@@ -320,12 +321,12 @@
   // rather than filling in tile by tile. A failed capture leaves that entry on
   // the app icon.
   async function openPreviews(index: number, windows: OpenWindow[]): Promise<void> {
-    const captured: Record<string, string> = {}
+    const captured: Record<string, Gdk.Texture> = {}
     await Promise.all(
       windows.map(async (window) => {
-        const path = await captureWindow(window)
-        if (path !== null) {
-          captured[window.address] = path
+        const texture = await captureWindow(window)
+        if (texture !== null) {
+          captured[window.address] = texture
         }
       }),
     )
@@ -333,10 +334,10 @@
     previewIndex = index
   }
 
-  async function captureWindow(window: OpenWindow): Promise<string | null> {
+  async function captureWindow(window: OpenWindow): Promise<Gdk.Texture | null> {
     const reply = recordOf(await bus.call('hypr:capture', { address: window.address, width: PREVIEW_WIDTH }))
-    if (typeof reply.path === 'string') {
-      return reply.path
+    if (reply.texture !== undefined && reply.texture !== null) {
+      return reply.texture as Gdk.Texture
     }
     console.warn(`dock: no preview for ${window.title}:`, reply.error)
     return null
@@ -486,7 +487,7 @@
                       <gtkbox class="dock-preview-frame" height={PREVIEW_HEIGHT} clip>
                         {#if previews[window.address] !== undefined}
                           <gtkpicture
-                            file={previews[window.address]}
+                            paintable={previews[window.address]}
                             fit="contain"
                             hexpand
                             vexpand

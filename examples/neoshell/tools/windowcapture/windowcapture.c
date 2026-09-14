@@ -1,13 +1,14 @@
 // windowcapture: grab one frame of a Hyprland window through
 // hyprland-toplevel-export-v1 and write it as a PNG.
 //
-//   windowcapture <address> <output.png> [max-width]
+//   windowcapture <address> <output.png|-> [max-width]
 //
 // <address> is the window address as printed by `hyprctl clients` (with or
 // without the 0x prefix). The frame is the window's own content: occluded
 // windows and windows on hidden workspaces capture fine, which is what a
-// screen-region grab cannot do. With [max-width] the image is box-filtered
-// down by an integer factor so it is at most that wide.
+// screen-region grab cannot do. `-` writes the PNG to stdout. With
+// [max-width] the image is box-filtered down by an integer factor so it is
+// at most that wide.
 
 #include <errno.h>
 #include <fcntl.h>
@@ -231,8 +232,19 @@ static void pixel_rgba(const struct capture *capture, uint32_t x, uint32_t y, ui
   }
 }
 
+static void close_output(FILE *file) {
+  if (file == stdout) {
+    fflush(stdout);
+    return;
+  }
+  fclose(file);
+}
+
 static int write_png(const struct capture *capture, const char *path, uint32_t max_width) {
-  FILE *file = fopen(path, "wb");
+  FILE *volatile file = stdout;
+  if (strcmp(path, "-") != 0) {
+    file = fopen(path, "wb");
+  }
   if (file == NULL) {
     fprintf(stderr, "windowcapture: %s: %s\n", path, strerror(errno));
     return -1;
@@ -242,7 +254,7 @@ static int write_png(const struct capture *capture, const char *path, uint32_t m
   uint8_t *volatile row = NULL;
   if (png == NULL || info == NULL || setjmp(png_jmpbuf(png))) {
     fprintf(stderr, "windowcapture: png encoding failed\n");
-    fclose(file);
+    close_output(file);
     free(row);
     return -1;
   }
@@ -255,12 +267,12 @@ static int write_png(const struct capture *capture, const char *path, uint32_t m
   uint32_t out_height = capture->height / factor;
   if (out_width == 0 || out_height == 0) {
     fprintf(stderr, "windowcapture: frame too small\n");
-    fclose(file);
+    close_output(file);
     return -1;
   }
   row = malloc((size_t)out_width * 4);
   if (row == NULL) {
-    fclose(file);
+    close_output(file);
     return -1;
   }
   png_init_io(png, file);
@@ -291,13 +303,13 @@ static int write_png(const struct capture *capture, const char *path, uint32_t m
   png_write_end(png, NULL);
   png_destroy_write_struct(&png, &info);
   free(row);
-  fclose(file);
+  close_output(file);
   return 0;
 }
 
 int main(int argc, char **argv) {
   if (argc < 3 || argc > 4) {
-    fprintf(stderr, "usage: windowcapture <address> <output.png> [max-width]\n");
+    fprintf(stderr, "usage: windowcapture <address> <output.png|-> [max-width]\n");
     return 2;
   }
   // The protocol takes the low 32 bits of the window address.

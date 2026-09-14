@@ -1,3 +1,4 @@
+import Gdk from 'gi://Gdk?version=4.0'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import type { Plugin } from '@neoworks/extension-system'
@@ -18,7 +19,7 @@ import { request, streamLines } from '../../gjs/socket.js'
 //   hypr:dispatch {dispatcher, arg}          → {ok} | {error}
 //   hypr:keyword  {name, value}              → {ok} | {error}
 //   hypr:request  {command}                  → {reply} | {error}
-//   hypr:capture  {address, width}           → {path} | {error}
+//   hypr:capture  {address, width}           → {texture} | {error}   in-process only
 //
 // It also provides the in-kernel "hypr" service for other extensions.
 
@@ -258,9 +259,11 @@ async function runRequest(client: HyprClient, data: unknown): Promise<unknown> {
 }
 
 // captureWindow grabs one frame of a window through the windowcapture helper
-// (tools/windowcapture, speaking hyprland-toplevel-export-v1) and returns the
-// PNG it wrote, at most `width` pixels wide. The helper is looked up next to
-// the shell first, then on PATH as neoshell-windowcapture.
+// (tools/windowcapture, speaking hyprland-toplevel-export-v1) and returns it
+// as a Gdk.Texture at most `width` pixels wide. The PNG streams over the
+// helper's stdout and never touches the disk; a texture is a live object, so
+// the reply is only meaningful to an in-process caller. The helper is looked
+// up next to the shell first, then on PATH as neoshell-windowcapture.
 async function captureWindow(data: unknown): Promise<unknown> {
   const args = data as { address?: string; width?: number }
   if (typeof args.address !== 'string' || !/^(0x)?[0-9a-f]+$/i.test(args.address)) {
@@ -270,33 +273,12 @@ async function captureWindow(data: unknown): Promise<unknown> {
   if (helper === null) {
     return { error: 'windowcapture helper is not built (run task neoshell:tools)' }
   }
-  // A fresh name per capture: a picture bound to an unchanged path would
-  // keep showing the previous frame.
-  const prefix = `neoshell-window-${args.address.toLowerCase()}-`
-  removeStaleCaptures(prefix)
-  const path = GLib.build_filenamev([GLib.get_tmp_dir(), `${prefix}${Date.now()}.png`])
   try {
-    await runHelper([helper, args.address, path, String(numberOr(args.width, 240))])
+    const png = await runHelper([helper, args.address, '-', String(numberOr(args.width, 240))])
+    return { texture: Gdk.Texture.new_from_bytes(png) }
   } catch (error) {
     return { error: String(error) }
   }
-  return { path }
-}
-
-function removeStaleCaptures(prefix: string): void {
-  const tmp = GLib.get_tmp_dir()
-  let dir: GLib.Dir
-  try {
-    dir = GLib.Dir.open(tmp, 0)
-  } catch {
-    return
-  }
-  for (let name = dir.read_name(); name !== null; name = dir.read_name()) {
-    if (name.startsWith(prefix)) {
-      GLib.unlink(GLib.build_filenamev([tmp, name]))
-    }
-  }
-  dir.close()
 }
 
 function findCaptureHelper(): string | null {
@@ -307,24 +289,35 @@ function findCaptureHelper(): string | null {
   return GLib.find_program_in_path('neoshell-windowcapture')
 }
 
-function runHelper(argv: string[]): Promise<void> {
-  const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDERR_PIPE)
+function runHelper(argv: string[]): Promise<GLib.Bytes> {
+  const process = Gio.Subprocess.new(
+    argv,
+    Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+  )
   return new Promise((resolve, reject) => {
-    process.communicate_utf8_async(null, null, (_source, result) => {
-      let stderr = ''
+    process.communicate_async(null, null, (_source, result) => {
+      let stdout: GLib.Bytes | null
+      let stderr: GLib.Bytes | null
       try {
-        stderr = process.communicate_utf8_finish(result)[2]
+        ;[, stdout, stderr] = process.communicate_finish(result)
       } catch (error) {
         reject(error)
         return
       }
-      if (!process.get_successful()) {
-        reject(new Error(stderr.trim()))
+      if (!process.get_successful() || stdout === null) {
+        reject(new Error(bytesToString(stderr).trim()))
         return
       }
-      resolve()
+      resolve(stdout)
     })
   })
+}
+
+function bytesToString(bytes: GLib.Bytes | null): string {
+  if (bytes === null) {
+    return ''
+  }
+  return new TextDecoder().decode(bytes.toArray())
 }
 
 function numberOr(value: number | undefined, fallback: number): number {
