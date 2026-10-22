@@ -91,7 +91,11 @@ function dedupeSvelte(root) {
 }
 
 export async function build(options) {
-  await esbuild.build({
+  await esbuild.build(buildOptions(options));
+}
+
+export function buildOptions(options) {
+  return {
     entryPoints: [options.entry],
     outfile: options.outfile,
     bundle: true,
@@ -108,5 +112,5 @@ export async function build(options) {
     },
     plugins: [dedupeSvelte(dirname(options.entry)), sveltePlugin],
     logLevel: "info",
-  });
+  };
 }

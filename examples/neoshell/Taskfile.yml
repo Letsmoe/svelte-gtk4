@@ -1,9 +1,8 @@
 # Taskfile for neoshell. Requires go-task (https://taskfile.dev).
 #
 #   task run     run the TS host (spawns the render host, mounts extensions)
-#   task dev     the same against a vite dev server: a saved view is hot
-#                replaced in place, extension backends remount, and the host
-#                restarts on its own edits
+#   task dev     run the GTK shell, rebuilding and restarting it on every
+#                source or style.css change
 #   task build   compile the render host, daemons, and the notifications bridge
 #
 # The host spawns the render host, so the render host must be built first.
@@ -87,10 +86,10 @@ tasks:
       - bun src/main.ts
 
   dev:
-    desc: Run the host against the views dev server (HMR on save, host restarts on its own changes)
-    deps: [render:build, notifyd:build, trayd:build]
+    desc: Run the GTK shell, rebuilding and restarting it on every change (root `neoshell:dev`)
+    interactive: true
     cmds:
-      - bun scripts/dev.ts
+      - '{{.TASK_EXE}} -d {{.ROOT_DIR}}/../.. neoshell:dev'
 
   views:dev:
     desc: Serve the views from source with HMR (started by `task dev`)

@@ -86,6 +86,14 @@ tasks:
       - node build.mjs
       - gjs -m dist/neoshell.js
 
+  neoshell:dev:
+    desc: Run the shell and rebuild and restart it on every source or style change
+    deps: [install, neoshell:tools]
+    dir: examples/neoshell
+    interactive: true
+    cmds:
+      - node dev.mjs
+
   watch:
     desc: Rebuild the bundle on every source change
     cmds:
