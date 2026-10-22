@@ -21,11 +21,20 @@ const marked = new WeakSet<Gtk.Widget>();
 const watched = new WeakSet<Gtk.Window>();
 
 export function markInput(widget: Gtk.Widget, enabled: boolean): void {
-  if (enabled) {
-    marked.add(widget);
+  if (marked.has(widget) === enabled) {
     return;
   }
-  marked.delete(widget);
+  if (enabled) {
+    marked.add(widget);
+  } else {
+    marked.delete(widget);
+  }
+  // The region is republished after a paint. Flipping `input` alone changes
+  // nothing on screen, so nothing would paint and the old region would stay.
+  const root = widget.get_root();
+  if (root !== null) {
+    (root as unknown as Gtk.Widget).queue_draw();
+  }
 }
 
 // Allocations are only known after layout, and layout only settles by the time

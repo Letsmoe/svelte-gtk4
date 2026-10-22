@@ -145,6 +145,13 @@ export class GtkWindow extends Widget<Gtk.Window> {
       case "lock":
         this.assignLock(asObject<LockAssignment>(value));
         return true;
+      // The Gdk.Monitor this layer surface goes on; null lets the compositor
+      // pick. Set before the window is realized, which the deferred present
+      // guarantees for a binding in the template.
+      case "monitor":
+        this.ensureLayerShell();
+        LayerShell.set_monitor(this.widget, asObject<Gdk.Monitor>(value) as Gdk.Monitor);
+        return true;
       default:
         return super.attr(name, value);
     }
