@@ -1,7 +1,0 @@
-{
-  "id": "deskminder",
-  "inject": ["bus"],
-  "provides": [],
-  "backend": "./backend.ts",
-  "views": "views.js"
-}

@@ -1,6 +1,0 @@
-{
-  "id": "hypr",
-  "inject": ["bus"],
-  "provides": ["hypr"],
-  "backend": "./backend.ts"
-}

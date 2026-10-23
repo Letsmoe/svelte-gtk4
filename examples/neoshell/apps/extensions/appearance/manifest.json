@@ -1,6 +1,0 @@
-{
-  "id": "appearance",
-  "inject": ["bus"],
-  "provides": [],
-  "backend": "./backend.ts"
-}
