@@ -106,6 +106,9 @@ export function buildOptions(options) {
     conditions: ["browser", "production", "default"],
     mainFields: ["browser", "module", "main"],
     external: ["gi://*", "system", "console", "resource://*"],
+    // A package ships its stylesheet inside the bundle and hands the text to a
+    // Gtk.CssProvider, since a GJS bundle has no file next to it to load.
+    loader: { ".css": "text" },
     alias: {
       "@neoworks/svelte-gtk4": here("./src/index.ts"),
       "esm-env": here("./src/esm-env.ts"),
