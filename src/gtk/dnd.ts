@@ -2,11 +2,14 @@
 // them; dragging out is an attribute naming the files to hand over.
 //
 //   ondropenter / ondropleave   a drag carrying files is over the widget / left
-//   ondrop                      detail {paths, uris, x, y}
+//   ondrop                      detail {paths, uris, image, x, y}
 //   drag-files={paths}          the widget can be dragged out as those files
 //
 // paths are the local files; uris are the URIs without a local path (what a
 // browser offers for a dragged image or link), left for the app to fetch.
+// image is the address of the picture itself when the source names one, or
+// "": Firefox's uri-list for an image inside a link is the link, and only
+// application/x-moz-file-promise-url (UTF-16) says which image was dragged.
 //
 // Both directions speak text/uri-list directly. GJS turns a GdkFileList that
 // travels in a GValue into an opaque object with no methods, so neither a
@@ -21,6 +24,7 @@ import type { EventHandler, SElement } from "../dom/nodes";
 export const DROP_EVENTS = ["drop", "dropenter", "dropleave"];
 
 const URI_LIST = "text/uri-list";
+const IMAGE_URL = "application/x-moz-file-promise-url";
 
 type Fire = (node: SElement, type: string, handler: EventHandler, detail: unknown) => void;
 
@@ -97,33 +101,48 @@ function fireHandlers(
 interface DroppedUris {
   paths: string[];
   uris: string[];
+  image: string;
 }
 
 // Every accepted drop must be finished, whatever happens: an unfinished one
 // leaves the compositor holding the drag, and with it all pointer input.
 function readUris(drop: Gdk.Drop, deliver: (dropped: DroppedUris) => void): void {
-  drop.read_async([URI_LIST], GLib.PRIORITY_DEFAULT, null, (_source, result) => {
+  readFormat(drop, URI_LIST, "utf-8", (text) => {
+    const dropped = parseUriList(text);
+    if (!drop.get_formats().contain_mime_type(IMAGE_URL)) {
+      finishDrop(drop, dropped, deliver);
+      return;
+    }
+    readFormat(drop, IMAGE_URL, "utf-16le", (image) => {
+      finishDrop(drop, { ...dropped, image: image.trim() }, deliver);
+    });
+  });
+}
+
+// The format's content as text, or "" when the source cannot give it.
+function readFormat(drop: Gdk.Drop, mimeType: string, encoding: string, deliver: (text: string) => void): void {
+  drop.read_async([mimeType], GLib.PRIORITY_DEFAULT, null, (_source, result) => {
     try {
       const [stream] = drop.read_finish(result);
       if (stream === null) {
-        finishDrop(drop, parseUriList(""), deliver);
+        deliver("");
         return;
       }
-      readText(stream, (text) => finishDrop(drop, parseUriList(text), deliver));
+      readText(stream, encoding, deliver);
     } catch (error) {
-      console.error("svelte-gtk4: reading a drop failed:", error);
-      finishDrop(drop, parseUriList(""), deliver);
+      console.error(`svelte-gtk4: reading ${mimeType} from a drop failed:`, error);
+      deliver("");
     }
   });
 }
 
-function readText(stream: Gio.InputStream, deliver: (text: string) => void): void {
+function readText(stream: Gio.InputStream, encoding: string, deliver: (text: string) => void): void {
   const output = Gio.MemoryOutputStream.new_resizable();
   const flags = Gio.OutputStreamSpliceFlags.CLOSE_SOURCE | Gio.OutputStreamSpliceFlags.CLOSE_TARGET;
   output.splice_async(stream, flags, GLib.PRIORITY_DEFAULT, null, (_source, result) => {
     try {
       output.splice_finish(result);
-      deliver(new TextDecoder().decode(output.steal_as_bytes().toArray()));
+      deliver(new TextDecoder(encoding).decode(output.steal_as_bytes().toArray()));
     } catch (error) {
       console.error("svelte-gtk4: reading a drop failed:", error);
       deliver("");
@@ -143,7 +162,7 @@ function finishDrop(drop: Gdk.Drop, dropped: DroppedUris, deliver: (dropped: Dro
 
 // text/uri-list: one URI per CRLF-terminated line, # starts a comment.
 function parseUriList(text: string): DroppedUris {
-  const dropped: DroppedUris = { paths: [], uris: [] };
+  const dropped: DroppedUris = { paths: [], uris: [], image: "" };
   for (const line of text.split(/\r?\n/)) {
     addUri(dropped, line.trim());
   }
