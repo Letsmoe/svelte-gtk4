@@ -58,41 +58,6 @@ tasks:
       - node build.mjs
       - gjs -m dist/gallery.js
 
-  neoshell:tools:
-    desc: Build the native helpers the shell spawns (window previews)
-    dir: examples/neoshell
-    sources:
-      - tools/windowcapture/windowcapture.c
-      - tools/windowcapture/*.xml
-    generates:
-      - tools/windowcapture/windowcapture
-    cmds:
-      - tools/windowcapture/build.sh
-
-  neoshell:smoke:
-    desc: Build every neoshell view once in a plain window and exit
-    deps: [install]
-    dir: examples/neoshell
-    cmds:
-      - node smoke.mjs
-      - gjs -m dist/smoke.js
-
-  neoshell:
-    desc: Build and run the whole shell — takes over the session it runs in
-    deps: [install, neoshell:tools]
-    dir: examples/neoshell
-    interactive: true
-    cmds:
-      - node build.mjs
-      - gjs -m dist/neoshell.js
-
-  neoshell:dev:
-    desc: Run the shell and rebuild and restart it on every source or style change
-    deps: [install, neoshell:tools]
-    dir: examples/neoshell
-    interactive: true
-    cmds:
-      - node dev.mjs
 
   watch:
     desc: Rebuild the bundle on every source change

@@ -135,7 +135,7 @@ Deliberately **not** wrapped:
 - **Layer surfaces are permanently `:backdrop`.** They never hold focus, so
   the theme's `button:backdrop { color: … }` greys every button label on a
   bar or tray. Pin `color` on buttons explicitly (see the reset at the top of
-  `examples/neoshell/style.css`).
+  `../neoshell/style.css`).
 - **`GestureClick` and `GestureDrag` both see the same release.** A `press`
   handler (`released`) fires on the release that ends a drag, in controller
   connection order — which is attribute order in the template. A view that
@@ -162,7 +162,7 @@ Deliberately **not** wrapped:
 - **Widget margins are not animatable and the `css` attribute is not for
   per-frame use** — every change builds a new `CssProvider` for the whole
   display. Drive a glide with `widget.add_tick_callback` and set the margin
-  each frame (`examples/neoshell/src/extensions/neoshell/glide.ts`).
+  each frame (`../neoshell/src/extensions/neoshell/glide.ts`).
 - **A drag on a moving widget needs origin compensation** — `events.ts`
   already adds the widget's own travel back into `dx`/`dy`, so a view may
   move the dragged widget freely.
@@ -170,12 +170,10 @@ Deliberately **not** wrapped:
 ## Commands
 
 ```
-task build           # bundle examples/topbar
-task bar             # build and run it
-task smoke           # build every widget once and exit
-task typecheck       # tsc --noEmit
-task neoshell        # build and run the shell — takes over the session
-task neoshell:smoke  # build every neoshell view in a plain window, exit after 2s
+task build      # bundle examples/topbar
+task bar        # build and run it
+task smoke      # build every widget once and exit
+task typecheck  # tsc --noEmit
 ```
 
 `task smoke` is the one that matters when touching `src/gtk/widgets/`.
