@@ -40,11 +40,24 @@ export function addListener(
     addControllerListener(node, type, handler);
     return;
   }
+  const signal = signalNameOf(type);
   try {
-    node.widget.connect(type, () => fire(node, type, handler, null));
+    node.widget.connect(signal, () => fire(node, type, handler, null));
   } catch {
-    console.error(`svelte-gtk4: ${node.tagName} has no "${type}" signal`);
+    console.error(`svelte-gtk4: ${node.tagName} has no "${signal}" signal`);
   }
+}
+
+// Svelte warns on a colon in an attribute name, so a property notification
+// can also be written `onnotify-selected` for `notify::selected`. No GTK
+// signal itself starts with "notify-".
+const NOTIFY_PREFIX = "notify-";
+
+function signalNameOf(type: string): string {
+  if (!type.startsWith(NOTIFY_PREFIX)) {
+    return type;
+  }
+  return `notify::${type.slice(NOTIFY_PREFIX.length)}`;
 }
 
 function addControllerListener(

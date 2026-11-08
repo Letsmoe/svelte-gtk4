@@ -9,10 +9,11 @@ import { Widget } from "./base";
  *
  * ```svelte
  * <gtkdropdown items={["Small", "Medium", "Large"]} selected={size}
- *              onnotify::selected={(e) => (size = e.target.widget.get_selected())} />
+ *              onnotify-selected={(e) => (size = e.target.widget.get_selected())} />
  * ```
  *
- * There is no signal for the choice changing — watch `notify::selected`.
+ * There is no signal for the choice changing — watch `notify::selected`,
+ * written `onnotify-selected` (Svelte warns on a colon in an attribute).
  */
 export class GtkDropDown extends Widget<Gtk.DropDown> {
   static override readonly tag = "gtkdropdown";
