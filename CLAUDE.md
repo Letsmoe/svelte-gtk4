@@ -163,6 +163,10 @@ Deliberately **not** wrapped:
   per-frame use** — every change builds a new `CssProvider` for the whole
   display. Drive a glide with `widget.add_tick_callback` and set the margin
   each frame (`../neoshell/src/extensions/neoshell/glide.ts`).
+- **File drag and drop is `dnd.ts`:** `ondropenter`/`ondropleave`/`ondrop`
+  (detail `{paths, x, y}`) on the receiving widget, `drag-files={paths}` on
+  one that can be dragged out. A layer surface only receives drops inside its
+  input region.
 - **A drag on a moving widget needs origin compensation** — `events.ts`
   already adds the widget's own travel back into `dx`/`dy`, so a view may
   move the dragged widget freely.

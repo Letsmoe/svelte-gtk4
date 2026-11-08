@@ -5,6 +5,7 @@
 import Gtk from "gi://Gtk?version=4.0";
 import type { SElement } from "../../dom/nodes";
 import { asAlign, asBool, asNumber, asString } from "../attrs";
+import { setDragFiles } from "../dnd";
 import { markInput } from "../inputRegion";
 import { register, unregister } from "../registry";
 import { applyClasses, applyInlineCss } from "../style";
@@ -117,6 +118,10 @@ export abstract class Widget<W extends Gtk.Widget = Gtk.Widget>
       // stops taking clicks.
       case "input":
         markInput(this.widget, asBool(value));
+        return true;
+      // The files this widget can be dragged out as. See dnd.ts.
+      case "drag-files":
+        setDragFiles(this.widget, value);
         return true;
       // Which of a parent's named positions this child occupies. Spelt `place`
       // rather than `slot` so Svelte's own slot handling never sees it.
