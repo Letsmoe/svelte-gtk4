@@ -5,25 +5,33 @@
 //   ondrop                      detail {paths, x, y}
 //   drag-files={paths}          the widget can be dragged out as those files
 //
-// Both go through Gdk.FileList, which GDK converts to and from text/uri-list,
-// so file managers, browsers and editors all understand it.
+// Both directions speak text/uri-list directly. GJS turns a GdkFileList that
+// travels in a GValue into an opaque object with no methods, so neither a
+// Gtk.DropTarget typed for it nor a provider built from one carries files.
 
 import Gdk from "gi://Gdk?version=4.0";
 import Gio from "gi://Gio";
-import GObject from "gi://GObject";
+import GLib from "gi://GLib";
 import Gtk from "gi://Gtk?version=4.0";
 import type { EventHandler, SElement } from "../dom/nodes";
 
 export const DROP_EVENTS = ["drop", "dropenter", "dropleave"];
 
+const URI_LIST = "text/uri-list";
+
 type Fire = (node: SElement, type: string, handler: EventHandler, detail: unknown) => void;
+
+interface DropState {
+  target: Gtk.DropTargetAsync;
+  handlers: Map<string, EventHandler[]>;
+}
 
 interface DragSourceState {
   source: Gtk.DragSource;
   paths: string[];
 }
 
-const dropTargets = new WeakMap<SElement, Gtk.DropTarget>();
+const dropStates = new WeakMap<SElement, DropState>();
 const dragSources = new WeakMap<Gtk.Widget, DragSourceState>();
 
 export function addDropListener(
@@ -32,23 +40,117 @@ export function addDropListener(
   handler: EventHandler,
   fire: Fire,
 ): void {
-  const target = dropTargetFor(node);
-  if (type === "dropenter") {
-    // The returned action is what the source is told this widget accepts.
-    target.connect("enter", () => {
-      fire(node, type, handler, null);
-      return Gdk.DragAction.COPY;
-    });
+  const state = dropStateFor(node, fire);
+  const handlers = state.handlers.get(type);
+  if (handlers === undefined) {
+    state.handlers.set(type, [handler]);
     return;
   }
-  if (type === "dropleave") {
-    target.connect("leave", () => fire(node, type, handler, null));
-    return;
+  handlers.push(handler);
+}
+
+function dropStateFor(node: SElement, fire: Fire): DropState {
+  const existing = dropStates.get(node);
+  if (existing !== undefined) {
+    return existing;
   }
-  target.connect("drop", (_target, value, x, y) => {
-    fire(node, type, handler, { paths: pathsOf(value), x, y });
+  const target = Gtk.DropTargetAsync.new(
+    Gdk.ContentFormats.new([URI_LIST]),
+    Gdk.DragAction.COPY,
+  );
+  const state: DropState = { target, handlers: new Map() };
+  const fireAll = (type: string, detail: unknown) => fireHandlers(node, state, fire, type, detail);
+  // The returned action is what the source is told this widget accepts.
+  target.connect("drag-enter", () => {
+    fireAll("dropenter", null);
+    return Gdk.DragAction.COPY;
+  });
+  target.connect("drag-leave", () => fireAll("dropleave", null));
+  target.connect("drop", (_target, drop, x, y) => {
+    readPaths(drop, (paths) => fireAll("drop", { paths, x, y }));
     return true;
   });
+  node.widget.add_controller(target);
+  dropStates.set(node, state);
+  return state;
+}
+
+function fireHandlers(
+  node: SElement,
+  state: DropState,
+  fire: Fire,
+  type: string,
+  detail: unknown,
+): void {
+  const handlers = state.handlers.get(type);
+  if (handlers === undefined) {
+    return;
+  }
+  for (const handler of handlers) {
+    fire(node, type, handler, detail);
+  }
+}
+
+// Every accepted drop must be finished, whatever happens: an unfinished one
+// leaves the compositor holding the drag, and with it all pointer input.
+function readPaths(drop: Gdk.Drop, deliver: (paths: string[]) => void): void {
+  drop.read_async([URI_LIST], GLib.PRIORITY_DEFAULT, null, (_source, result) => {
+    try {
+      const [stream] = drop.read_finish(result);
+      if (stream === null) {
+        finishDrop(drop, [], deliver);
+        return;
+      }
+      readText(stream, (text) => finishDrop(drop, parseUriList(text), deliver));
+    } catch (error) {
+      console.error("svelte-gtk4: reading a drop failed:", error);
+      finishDrop(drop, [], deliver);
+    }
+  });
+}
+
+function readText(stream: Gio.InputStream, deliver: (text: string) => void): void {
+  const output = Gio.MemoryOutputStream.new_resizable();
+  const flags = Gio.OutputStreamSpliceFlags.CLOSE_SOURCE | Gio.OutputStreamSpliceFlags.CLOSE_TARGET;
+  output.splice_async(stream, flags, GLib.PRIORITY_DEFAULT, null, (_source, result) => {
+    try {
+      output.splice_finish(result);
+      deliver(new TextDecoder().decode(output.steal_as_bytes().toArray()));
+    } catch (error) {
+      console.error("svelte-gtk4: reading a drop failed:", error);
+      deliver("");
+    }
+  });
+}
+
+function finishDrop(drop: Gdk.Drop, paths: string[], deliver: (paths: string[]) => void): void {
+  if (paths.length === 0) {
+    drop.finish(0);
+  } else {
+    drop.finish(Gdk.DragAction.COPY);
+  }
+  deliver(paths);
+}
+
+// text/uri-list: one URI per CRLF-terminated line, # starts a comment. URIs
+// without a local path (a link a browser offers) are skipped: everything
+// downstream works on paths.
+function parseUriList(text: string): string[] {
+  const paths: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const path = localPathOf(line.trim());
+    if (path !== null) {
+      paths.push(path);
+    }
+  }
+  return paths;
+}
+
+function localPathOf(uri: string): string | null {
+  if (uri === "" || uri.startsWith("#")) {
+    return null;
+  }
+  return Gio.File.new_for_uri(uri).get_path();
 }
 
 /** Makes `widget` draggable as `paths`; an empty list stops it being one. */
@@ -71,48 +173,15 @@ export function setDragFiles(widget: Gtk.Widget, value: unknown): void {
   dragSources.set(widget, state);
 }
 
-function dropTargetFor(node: SElement): Gtk.DropTarget {
-  const existing = dropTargets.get(node);
-  if (existing !== undefined) {
-    return existing;
-  }
-  const target = Gtk.DropTarget.new(fileListType(), Gdk.DragAction.COPY);
-  node.widget.add_controller(target);
-  dropTargets.set(node, target);
-  return target;
-}
-
-// The typings omit Gdk.FileList's $gtype; the type registers with Gdk.
-function fileListType(): GObject.GType {
-  return GObject.type_from_name("GdkFileList");
-}
-
+// Offered as text/uri-list bytes, which every receiver understands; GTK ones
+// turn it back into a Gdk.FileList themselves.
 function contentFor(paths: string[]): Gdk.ContentProvider | null {
   if (paths.length === 0) {
     return null;
   }
-  const files = paths.map((path) => Gio.File.new_for_path(path));
-  const value = new GObject.Value();
-  value.init(fileListType());
-  value.set_boxed(Gdk.FileList.new_from_array(files));
-  return Gdk.ContentProvider.new_for_value(value);
-}
-
-// Files without a local path (a remote URI a browser offers) are skipped:
-// everything downstream works on paths.
-function pathsOf(value: unknown): string[] {
-  const list = value as Gdk.FileList | null;
-  if (list === null || typeof list.get_files !== "function") {
-    return [];
-  }
-  const paths: string[] = [];
-  for (const file of list.get_files()) {
-    const path = file.get_path();
-    if (path !== null) {
-      paths.push(path);
-    }
-  }
-  return paths;
+  const uris = paths.map((path) => Gio.File.new_for_path(path).get_uri());
+  const text = `${uris.join("\r\n")}\r\n`;
+  return Gdk.ContentProvider.new_for_bytes(URI_LIST, new GLib.Bytes(new TextEncoder().encode(text)));
 }
 
 function pathListOf(value: unknown): string[] {
