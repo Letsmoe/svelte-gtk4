@@ -65,8 +65,22 @@ export class GtkScale extends Widget<Gtk.Scale> {
       case "inverted":
         this.widget.set_inverted(asBool(value));
         return true;
+      // A tick under the trough at each value, without text.
+      case "marks":
+        this.applyMarks(value);
+        return true;
       default:
         return super.attr(name, value);
+    }
+  }
+
+  private applyMarks(value: unknown): void {
+    this.widget.clear_marks();
+    if (!Array.isArray(value)) {
+      return;
+    }
+    for (const mark of value) {
+      this.widget.add_mark(asNumber(mark, 0), Gtk.PositionType.BOTTOM, null);
     }
   }
 

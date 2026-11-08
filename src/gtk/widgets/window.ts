@@ -73,6 +73,11 @@ export class GtkWindow extends Widget<Gtk.Window> {
       case "resizable":
         this.widget.set_resizable(asBool(value));
         return true;
+      // Closing then only hides the window, so a template that removes it in
+      // its close-request handler is the one that destroys it.
+      case "hide-on-close":
+        this.widget.set_hide_on_close(asBool(value));
+        return true;
       case "modal":
         this.widget.set_modal(asBool(value));
         return true;

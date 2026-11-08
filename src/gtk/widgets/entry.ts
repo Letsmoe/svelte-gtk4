@@ -30,13 +30,13 @@ export class GtkEntry extends Editable<Gtk.Entry> {
       case "icon":
         this.widget.set_icon_from_icon_name(
           Gtk.EntryIconPosition.PRIMARY,
-          asString(value),
+          iconNameOrNull(value),
         );
         return true;
       case "icon-end":
         this.widget.set_icon_from_icon_name(
           Gtk.EntryIconPosition.SECONDARY,
-          asString(value),
+          iconNameOrNull(value),
         );
         return true;
       case "progress":
@@ -53,4 +53,13 @@ export class GtkEntry extends Editable<Gtk.Entry> {
         return super.attr(name, value);
     }
   }
+}
+
+// An empty name would be looked up as an icon called "" and drawn as missing.
+function iconNameOrNull(value: unknown): string | null {
+  const name = asString(value);
+  if (name === "") {
+    return null;
+  }
+  return name;
 }
