@@ -2,8 +2,11 @@
 // them; dragging out is an attribute naming the files to hand over.
 //
 //   ondropenter / ondropleave   a drag carrying files is over the widget / left
-//   ondrop                      detail {paths, x, y}
+//   ondrop                      detail {paths, uris, x, y}
 //   drag-files={paths}          the widget can be dragged out as those files
+//
+// paths are the local files; uris are the URIs without a local path (what a
+// browser offers for a dragged image or link), left for the app to fetch.
 //
 // Both directions speak text/uri-list directly. GJS turns a GdkFileList that
 // travels in a GValue into an opaque object with no methods, so neither a
@@ -67,7 +70,7 @@ function dropStateFor(node: SElement, fire: Fire): DropState {
   });
   target.connect("drag-leave", () => fireAll("dropleave", null));
   target.connect("drop", (_target, drop, x, y) => {
-    readPaths(drop, (paths) => fireAll("drop", { paths, x, y }));
+    readUris(drop, (dropped) => fireAll("drop", { ...dropped, x, y }));
     return true;
   });
   node.widget.add_controller(target);
@@ -91,20 +94,25 @@ function fireHandlers(
   }
 }
 
+interface DroppedUris {
+  paths: string[];
+  uris: string[];
+}
+
 // Every accepted drop must be finished, whatever happens: an unfinished one
 // leaves the compositor holding the drag, and with it all pointer input.
-function readPaths(drop: Gdk.Drop, deliver: (paths: string[]) => void): void {
+function readUris(drop: Gdk.Drop, deliver: (dropped: DroppedUris) => void): void {
   drop.read_async([URI_LIST], GLib.PRIORITY_DEFAULT, null, (_source, result) => {
     try {
       const [stream] = drop.read_finish(result);
       if (stream === null) {
-        finishDrop(drop, [], deliver);
+        finishDrop(drop, parseUriList(""), deliver);
         return;
       }
       readText(stream, (text) => finishDrop(drop, parseUriList(text), deliver));
     } catch (error) {
       console.error("svelte-gtk4: reading a drop failed:", error);
-      finishDrop(drop, [], deliver);
+      finishDrop(drop, parseUriList(""), deliver);
     }
   });
 }
@@ -123,34 +131,35 @@ function readText(stream: Gio.InputStream, deliver: (text: string) => void): voi
   });
 }
 
-function finishDrop(drop: Gdk.Drop, paths: string[], deliver: (paths: string[]) => void): void {
-  if (paths.length === 0) {
+function finishDrop(drop: Gdk.Drop, dropped: DroppedUris, deliver: (dropped: DroppedUris) => void): void {
+  if (dropped.paths.length === 0 && dropped.uris.length === 0) {
+    console.warn(`svelte-gtk4: a drop carried no URIs; offered ${drop.get_formats().to_string()}`);
     drop.finish(0);
   } else {
     drop.finish(Gdk.DragAction.COPY);
   }
-  deliver(paths);
+  deliver(dropped);
 }
 
-// text/uri-list: one URI per CRLF-terminated line, # starts a comment. URIs
-// without a local path (a link a browser offers) are skipped: everything
-// downstream works on paths.
-function parseUriList(text: string): string[] {
-  const paths: string[] = [];
+// text/uri-list: one URI per CRLF-terminated line, # starts a comment.
+function parseUriList(text: string): DroppedUris {
+  const dropped: DroppedUris = { paths: [], uris: [] };
   for (const line of text.split(/\r?\n/)) {
-    const path = localPathOf(line.trim());
-    if (path !== null) {
-      paths.push(path);
-    }
+    addUri(dropped, line.trim());
   }
-  return paths;
+  return dropped;
 }
 
-function localPathOf(uri: string): string | null {
+function addUri(dropped: DroppedUris, uri: string): void {
   if (uri === "" || uri.startsWith("#")) {
-    return null;
+    return;
   }
-  return Gio.File.new_for_uri(uri).get_path();
+  const path = Gio.File.new_for_uri(uri).get_path();
+  if (path === null) {
+    dropped.uris.push(uri);
+    return;
+  }
+  dropped.paths.push(path);
 }
 
 /** Makes `widget` draggable as `paths`; an empty list stops it being one. */
