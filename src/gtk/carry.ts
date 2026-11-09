@@ -17,8 +17,9 @@ import type Gtk from "gi://Gtk?version=4.0";
 // for a view in this process, the client's next batch for a remote one.
 //
 // A widget with `banded-by="name"` is the group's rubber band: shown while
-// the drag is on, spanning its start point to the pointer, in the pressed
-// widget's coordinates. It suits a press and a band that share an origin.
+// the drag is on, over its siblings, spanning its start point to the
+// pointer, in the pressed widget's coordinates. It suits a press and a band
+// that share an origin.
 
 export interface Point {
   x: number;
@@ -151,7 +152,18 @@ export function beginCarry(widget: Gtk.Widget, start: Point): void {
   group.travel = ORIGIN;
   group.dragging = true;
   group.carrying = false;
+  raiseBands(group);
   drawBands(group);
+}
+
+// A band is drawn over whatever its siblings are by the time a drag starts.
+function raiseBands(group: Group): void {
+  for (const band of group.bands) {
+    const parent = band.get_parent();
+    if (parent !== null) {
+      band.insert_before(parent, null);
+    }
+  }
 }
 
 export function moveCarry(widget: Gtk.Widget, travel: Point): void {
