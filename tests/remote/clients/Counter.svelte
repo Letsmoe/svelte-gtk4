@@ -33,6 +33,8 @@
   <gtkbox class="sized" css="min-width: 30px; transform: translateX(4px) scale(1.02);"></gtkbox>
   <gtkbox class="smuggled" css="min-width: 30px; background-image: url(file:///etc/passwd)"></gtkbox>
   <gtkbox class="dragged" drag-files={['known', 'made-up']}></gtkbox>
+  <gtkbox class="dragged-text" drag-text="widget:weather.card"></gtkbox>
+  <gtkbox class="text-target" ondroptext={() => {}}></gtkbox>
   <gtkpicture class="known-picture" handle="known"></gtkpicture>
   <gtkpicture class="unknown-picture" handle="made-up"></gtkpicture>
 </gtkbox>

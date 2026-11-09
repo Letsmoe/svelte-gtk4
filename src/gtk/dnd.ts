@@ -1,12 +1,20 @@
-// File drag and drop. Drops arrive as events on the element that listens for
-// them; dragging out is an attribute naming the files to hand over.
+// Drag and drop of files and of text. Drops arrive as events on the element
+// that listens for them; dragging out is an attribute naming what to hand
+// over.
 //
-//   ondropenter / ondropleave   a drag carrying files is over the widget / left
-//   ondrop                      detail {paths, uris, image, x, y}
+//   ondropenter / ondropleave   a drag is over the widget / left it
+//   ondrop                      files: detail {paths, uris, image, x, y}
+//   ondropmove                  a drag moved over the widget: detail {x, y}
+//   ondroptext                  text: detail {text, x, y}
 //   drag-files={paths}          the widget can be dragged out as those files
+//   drag-text={text}            the widget can be dragged out as that text
 //   ondragoutbegin / ondragoutend   a drag out of it started / ended, dropped
 //                               or not; the widget must outlive the drag, or
 //                               GTK cancels it
+//
+// A widget only takes text drags when it listens for droptext or dropmove,
+// so a file target is not offered every dragged word. The dragged widget
+// itself is the drag image, held where the press caught it.
 //
 // paths are the local files; uris are the URIs without a local path (what a
 // browser offers for a dragged image or link), left for the app to fetch.
@@ -24,10 +32,12 @@ import GLib from "gi://GLib";
 import Gtk from "gi://Gtk?version=4.0";
 import type { EventHandler, SElement } from "../dom/nodes";
 
-export const DROP_EVENTS = ["drop", "dropenter", "dropleave"];
+export const DROP_EVENTS = ["drop", "dropenter", "dropleave", "dropmove", "droptext"];
 export const DRAG_OUT_EVENTS = ["dragoutbegin", "dragoutend"];
 
 const URI_LIST = "text/uri-list";
+const TEXT = "text/plain;charset=utf-8";
+const TEXT_EVENTS = ["dropmove", "droptext"];
 // Sources differ in what they allow: Firefox under Hyprland offers a dragged
 // image as a move only. Both are accepted, and the drop is always taken as a
 // copy, see finishDrop.
@@ -44,6 +54,9 @@ interface DropState {
 interface DragSourceState {
   source: Gtk.DragSource;
   paths: string[];
+  text: string;
+  // Where the press that starts the drag caught the widget.
+  hotspot: { x: number; y: number };
   listeners: { type: string; run: () => void }[];
 }
 
@@ -57,6 +70,9 @@ export function addDropListener(
   fire: Fire,
 ): void {
   const state = dropStateFor(node, fire);
+  if (TEXT_EVENTS.includes(type)) {
+    state.target.set_formats(Gdk.ContentFormats.new([URI_LIST, TEXT]));
+  }
   const handlers = state.handlers.get(type);
   if (handlers === undefined) {
     state.handlers.set(type, [handler]);
@@ -79,7 +95,15 @@ function dropStateFor(node: SElement, fire: Fire): DropState {
     return preferredAction(drop);
   });
   target.connect("drag-leave", () => fireAll("dropleave", null));
+  target.connect("drag-motion", (_target, drop, x, y) => {
+    fireAll("dropmove", { x, y });
+    return preferredAction(drop);
+  });
   target.connect("drop", (_target, drop, x, y) => {
+    if (!drop.get_formats().contain_mime_type(URI_LIST)) {
+      readDroppedText(drop, (text) => fireAll("droptext", { text, x, y }));
+      return true;
+    }
     readUris(drop, (dropped) => fireAll("drop", { ...dropped, x, y }));
     return true;
   });
@@ -123,6 +147,20 @@ function readUris(drop: Gdk.Drop, deliver: (dropped: DroppedUris) => void): void
       finishDrop(drop, { ...dropped, image: image.trim() }, deliver);
     });
   });
+}
+
+function readDroppedText(drop: Gdk.Drop, deliver: (text: string) => void): void {
+  readFormat(drop, TEXT, "utf-8", (text) => {
+    drop.finish(textAction(drop, text));
+    deliver(text);
+  });
+}
+
+function textAction(drop: Gdk.Drop, text: string): Gdk.DragAction {
+  if (text === "" || (drop.get_actions() & Gdk.DragAction.COPY) === 0) {
+    return 0;
+  }
+  return Gdk.DragAction.COPY;
 }
 
 // The format's content as text, or "" when the source cannot give it.
@@ -208,6 +246,24 @@ export function setDragFiles(widget: Gtk.Widget, value: unknown): void {
   dragSourceFor(widget).paths = pathListOf(value);
 }
 
+/** Makes `widget` draggable as `value`; "" stops it being one. Files win over text. */
+export function setDragText(widget: Gtk.Widget, value: unknown): void {
+  let text = "";
+  if (typeof value === "string") {
+    text = value;
+  }
+  dragSourceFor(widget).text = text;
+}
+
+/** The text `widget` drags out as. */
+export function dragTextOf(widget: Gtk.Widget): string {
+  const state = dragSources.get(widget);
+  if (state === undefined) {
+    return "";
+  }
+  return state.text;
+}
+
 /** The paths `widget` drags out as. */
 export function dragFilesOf(widget: Gtk.Widget): string[] {
   const state = dragSources.get(widget);
@@ -227,13 +283,22 @@ function dragSourceFor(widget: Gtk.Widget): DragSourceState {
   if (existing !== undefined) {
     return existing;
   }
-  const state: DragSourceState = { source: new Gtk.DragSource(), paths: [], listeners: [] };
+  const state: DragSourceState = {
+    source: new Gtk.DragSource(),
+    paths: [],
+    text: "",
+    hotspot: { x: 0, y: 0 },
+    listeners: [],
+  };
   state.source.set_actions(Gdk.DragAction.COPY);
-  state.source.connect("prepare", () => contentFor(state.paths));
+  state.source.connect("prepare", (_source, x, y) => {
+    state.hotspot = { x, y };
+    return contentFor(state);
+  });
   // The widget itself, as it looks now, follows the pointer.
   state.source.connect("drag-begin", (source, _drag) => {
     const icon = Gtk.WidgetPaintable.new(widget);
-    source.set_icon(icon, widget.get_width() / 2, widget.get_height() / 2);
+    source.set_icon(icon, Math.round(state.hotspot.x), Math.round(state.hotspot.y));
     runListeners(state, "dragoutbegin");
   });
   state.source.connect("drag-end", () => runListeners(state, "dragoutend"));
@@ -250,15 +315,21 @@ function runListeners(state: DragSourceState, type: string): void {
   }
 }
 
-// Offered as text/uri-list bytes, which every receiver understands; GTK ones
-// turn it back into a Gdk.FileList themselves.
-function contentFor(paths: string[]): Gdk.ContentProvider | null {
-  if (paths.length === 0) {
-    return null;
+// Files are offered as text/uri-list bytes, which every receiver understands;
+// GTK ones turn it back into a Gdk.FileList themselves.
+function contentFor(state: DragSourceState): Gdk.ContentProvider | null {
+  if (state.paths.length > 0) {
+    const uris = state.paths.map((path) => Gio.File.new_for_path(path).get_uri());
+    return bytesProvider(URI_LIST, `${uris.join("\r\n")}\r\n`);
   }
-  const uris = paths.map((path) => Gio.File.new_for_path(path).get_uri());
-  const text = `${uris.join("\r\n")}\r\n`;
-  return Gdk.ContentProvider.new_for_bytes(URI_LIST, new GLib.Bytes(new TextEncoder().encode(text)));
+  if (state.text !== "") {
+    return bytesProvider(TEXT, state.text);
+  }
+  return null;
+}
+
+function bytesProvider(mimeType: string, text: string): Gdk.ContentProvider {
+  return Gdk.ContentProvider.new_for_bytes(mimeType, new GLib.Bytes(new TextEncoder().encode(text)));
 }
 
 function pathListOf(value: unknown): string[] {

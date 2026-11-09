@@ -13,7 +13,7 @@ import {
   setGlide,
   setPlacement,
 } from "../carry";
-import { setDragFiles } from "../dnd";
+import { setDragFiles, setDragText } from "../dnd";
 import { dragGesture } from "../events";
 import { markInput } from "../inputRegion";
 import { register, unregister } from "../registry";
@@ -131,6 +131,9 @@ export abstract class Widget<W extends Gtk.Widget = Gtk.Widget>
       // The files this widget can be dragged out as. See dnd.ts.
       case "drag-files":
         setDragFiles(this.widget, value);
+        return true;
+      case "drag-text":
+        setDragText(this.widget, value);
         return true;
       // A drag that moves widgets in this process. See carry.ts.
       case "carry":

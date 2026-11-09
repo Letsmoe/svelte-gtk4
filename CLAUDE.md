@@ -175,7 +175,11 @@ Deliberately **not** wrapped:
   one that can be dragged out, with `ondragoutbegin`/`ondragoutend` around a
   drag out of it — the widget must stay mounted until the end, or GTK cancels
   the drag. A layer surface only receives drops inside its
-  input region.
+  input region. Text works the same way: `drag-text={text}` on the source,
+  `ondroptext` (`{text, x, y}`) and `ondropmove` (`{x, y}`, every motion)
+  on a target; a target only takes text when it listens for one of those.
+  This is how one surface drags something onto another in the same process:
+  a pointer grab does not cross layer surfaces, a Wayland drag does.
 - **A drag on a moving widget needs origin compensation** — `events.ts`
   already adds the widget's own travel back into `dx`/`dy`, so a view may
   move the dragged widget freely.

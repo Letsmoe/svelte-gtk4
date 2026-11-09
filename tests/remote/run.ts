@@ -11,7 +11,7 @@ import Gdk from 'gi://Gdk?version=4.0'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk?version=4.0'
 import { SElement, SText } from '../../src/dom/nodes'
-import { dragFilesOf } from '../../src/gtk/dnd'
+import { dragFilesOf, dragTextOf } from '../../src/gtk/dnd'
 import { install } from '../../src/gtk/mirror'
 import { defaultPolicy, RemoteClient } from '../../src/remote/index'
 import type { ClientStatus, Embedder } from '../../src/remote/index'
@@ -154,6 +154,10 @@ async function counter(): Promise<void> {
   const [dragged] = widgetsWithClass(anchor.widget, 'dragged')
   const draggedFiles = dragFilesOf(dragged).join(',')
   expect('counter: a drag carries only files the host handed out', draggedFiles === '/tmp/known.txt', draggedFiles)
+  const [draggedText] = widgetsWithClass(anchor.widget, 'dragged-text')
+  expect('counter: a client can offer text to drag', dragTextOf(draggedText) === 'widget:weather.card', dragTextOf(draggedText))
+  const [textTarget] = widgetsWithClass(anchor.widget, 'text-target')
+  expect('counter: a droptext listener takes text drags', takesText(textTarget))
   const [button] = widgetsWithClass(anchor.widget, 'more')
   button.emit('clicked')
   expect('counter: a click reaches the client', await until(() => labelText(anchor, 'count') === 'count 1', 2000))
@@ -217,6 +221,17 @@ async function carry(): Promise<void> {
   expect('carry: a refused drop goes back on the client\'s empty answer', returned && waitedMs < 800, `${waitedMs} ms`)
   watched.client.stop()
   window.destroy()
+}
+
+function takesText(widget: Gtk.Widget): boolean {
+  const controllers = widget.observe_controllers()
+  for (let index = 0; index < controllers.get_n_items(); index++) {
+    const controller = controllers.get_item(index)
+    if (controller instanceof Gtk.DropTargetAsync) {
+      return controller.get_formats()?.contain_mime_type('text/plain;charset=utf-8') === true
+    }
+  }
+  return false
 }
 
 function dragGestureOf(widget: Gtk.Widget): Gtk.GestureDrag | null {
