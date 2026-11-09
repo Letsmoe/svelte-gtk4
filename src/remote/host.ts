@@ -22,7 +22,7 @@ import {
   OP_SET_TEXT,
   type WidgetState,
 } from "./protocol";
-import { type Policy, REFUSED } from "./policy";
+import { type Policy, REFUSED, Rewrite } from "./policy";
 import { EMBED_TAG, EmbedTable, type Embedder } from "./embed";
 
 export class ProtocolError extends Error {}
@@ -178,11 +178,11 @@ export class RemoteTree {
     if (this.embeds.setAttribute(node, name, checked)) {
       return;
     }
-    try {
-      node.setAttribute(name, checked);
-    } catch (error) {
-      console.warn(`svelte-gtk4 host: ${name} on <${node.tagName}>:`, error);
+    if (checked instanceof Rewrite) {
+      applyAttribute(node, checked.name, checked.value);
+      return;
     }
+    applyAttribute(node, name, checked);
   }
 
   private insert(parentId: number, childId: number, beforeId: number): void {
@@ -346,6 +346,14 @@ export class RemoteTree {
       return data;
     }
     return data.slice(0, this.policy.limits.textLength);
+  }
+}
+
+function applyAttribute(node: SElement, name: string, value: unknown): void {
+  try {
+    node.setAttribute(name, value);
+  } catch (error) {
+    console.warn(`svelte-gtk4 host: ${name} on <${node.tagName}>:`, error);
   }
 }
 

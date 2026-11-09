@@ -7,6 +7,7 @@
 
 import '../../src/gtk/clock'
 import '../../src/dom/globals'
+import Gdk from 'gi://Gdk?version=4.0'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk?version=4.0'
 import { SElement, SText } from '../../src/dom/nodes'
@@ -30,7 +31,7 @@ function watch(name: string, bundle: string, view: string, props: Record<string,
   const client = new RemoteClient({
     name,
     argv: [runner, `${dist}/${bundle}.js`, '--turn-ms', '300', '--memory-mb', '32'],
-    policy: defaultPolicy(name),
+    policy: defaultPolicy(name, { paintableOf }),
     embedder: greetingEmbedder,
     onStatus: (status, detail) => {
       statuses.push(status)
@@ -40,6 +41,21 @@ function watch(name: string, bundle: string, view: string, props: Record<string,
   client.mount(view, props, anchor)
   client.start()
   return { client, anchor, statuses, details }
+}
+
+// The one handle this host gave out.
+const knownPaintable = Gdk.Paintable.new_empty(4, 4)
+
+function paintableOf(handle: string): unknown {
+  if (handle === 'known') {
+    return knownPaintable
+  }
+  return null
+}
+
+function pictureHas(anchor: SElement, name: string): boolean {
+  const [picture] = widgetsWithClass(anchor.widget, name)
+  return picture !== undefined && (picture as Gtk.Picture).get_paintable() !== null
 }
 
 // The host's side of a <gtkembed view="greeting">: a label the client never sees.
@@ -118,6 +134,8 @@ async function counter(): Promise<void> {
   const watched = watch('counter', 'counter', 'counter', { start: 0 })
   const anchor = watched.anchor
   expect('counter: first frame', await until(() => labelText(anchor, 'count') === 'count 0', 3000))
+  expect('counter: a handle the host gave out shows its paintable', pictureHas(anchor, 'known-picture'))
+  expect('counter: a made-up handle shows nothing', !pictureHas(anchor, 'unknown-picture'))
   const [button] = widgetsWithClass(anchor.widget, 'more')
   button.emit('clicked')
   expect('counter: a click reaches the client', await until(() => labelText(anchor, 'count') === 'count 1', 2000))

@@ -8,6 +8,27 @@ import { EMBED_TAG } from "./embed";
 
 export const REFUSED = Symbol("refused");
 
+/** What a policy answers to apply a different attribute than the one asked for. */
+export class Rewrite {
+  readonly name: string;
+  readonly value: unknown;
+
+  constructor(name: string, value: unknown) {
+    this.name = name;
+    this.value = value;
+  }
+}
+
+export interface PolicyOptions {
+  /**
+   * The paintable behind a handle the host gave out, or null. A client shows
+   * an image only as `handle={…}` on a picture or image, never as a file.
+   */
+  paintableOf?(handle: string): unknown;
+}
+
+const HANDLE_TAGS = new Set(["gtkpicture"]);
+
 export interface Limits {
   nodes: number;
   depth: number;
@@ -19,7 +40,7 @@ export interface Limits {
 export interface Policy {
   limits: Limits;
   allowsTag(tag: string): boolean;
-  /** The value to apply, possibly changed, or REFUSED. */
+  /** The value to apply, possibly changed, a Rewrite, or REFUSED. */
   attribute(tag: string, name: string, value: unknown): unknown;
   allowsEvent(tag: string, type: string): boolean;
   allowsCall(tag: string, method: string): boolean;
@@ -70,14 +91,31 @@ const MAX_GEOMETRY = 8192;
 const ALLOWED_CALLS = new Set(["grab_focus"]);
 
 /** The default policy; `namespace` keeps the client's registry ids apart from everyone else's. */
-export function defaultPolicy(namespace: string): Policy {
+export function defaultPolicy(namespace: string, options: PolicyOptions = {}): Policy {
   return {
     limits: DEFAULT_LIMITS,
     allowsTag: (tag) => tag === EMBED_TAG || (isKnownTag(tag) && !REFUSED_TAGS.has(tag)),
-    attribute: (_tag, name, value) => checkedAttribute(namespace, name, value),
+    attribute: (tag, name, value) => {
+      if (name === "handle") {
+        return handleAttribute(options, tag, value);
+      }
+      return checkedAttribute(namespace, name, value);
+    },
     allowsEvent: (_tag, type) => type.length > 0 && type.length < 64,
     allowsCall: (_tag, method) => ALLOWED_CALLS.has(method),
   };
+}
+
+// An empty or unknown handle clears the picture rather than failing: a handle
+// can be released between the host publishing it and the client using it.
+function handleAttribute(options: PolicyOptions, tag: string, value: unknown): unknown {
+  if (!HANDLE_TAGS.has(tag) || options.paintableOf === undefined) {
+    return REFUSED;
+  }
+  if (typeof value !== "string" || value === "") {
+    return new Rewrite("paintable", null);
+  }
+  return new Rewrite("paintable", options.paintableOf(value));
 }
 
 function checkedAttribute(namespace: string, name: string, value: unknown): unknown {

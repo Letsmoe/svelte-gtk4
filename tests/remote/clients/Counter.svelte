@@ -16,4 +16,6 @@
     <gtklabel class="many">many</gtklabel>
   {/if}
   <gtkembed class="embedded" view="greeting" props={{ name: typed }}></gtkembed>
+  <gtkpicture class="known-picture" handle="known"></gtkpicture>
+  <gtkpicture class="unknown-picture" handle="made-up"></gtkpicture>
 </gtkbox>
