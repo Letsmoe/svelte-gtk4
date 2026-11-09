@@ -9,6 +9,7 @@ import { GtkAspectFrame } from "./aspectframe";
 import { GtkBox } from "./box";
 import { GtkButton } from "./button";
 import { GtkCalendar } from "./calendar";
+import { GtkCanvas } from "./canvas";
 import { GtkCenterBox } from "./centerbox";
 import { GtkCheckButton } from "./checkbutton";
 import { GtkClamp } from "./clamp";
@@ -106,6 +107,7 @@ const CLASSES: MountClass[] = [
   GtkSeparator,
   GtkCalendar,
   GtkDrawingArea,
+  GtkCanvas,
   GtkVideo,
 
   GtkButton,

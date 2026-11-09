@@ -92,16 +92,37 @@ function checkedAttribute(namespace: string, name: string, value: unknown): unkn
   return value;
 }
 
-// Strings, numbers, booleans, null, and lists of them.
+// Data as JSON has it — strings, finite numbers, booleans, null, and lists
+// and records of those, like a canvas's commands — within a bound on how
+// much and how deep, so one attribute cannot carry an unbounded structure.
+const MAX_PLAIN_ITEMS = 50_000;
+const MAX_PLAIN_DEPTH = 6;
+
 function isPlain(value: unknown): boolean {
-  if (value === null) {
-    return true;
+  const budget = { items: MAX_PLAIN_ITEMS };
+  return isPlainWithin(value, 0, budget);
+}
+
+function isPlainWithin(value: unknown, depth: number, budget: { items: number }): boolean {
+  budget.items -= 1;
+  if (budget.items < 0 || depth > MAX_PLAIN_DEPTH) {
+    return false;
   }
-  if (Array.isArray(value)) {
-    return value.every((item) => item === null || typeof item !== "object");
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return true;
   }
   if (typeof value === "number") {
     return Number.isFinite(value);
   }
-  return typeof value === "string" || typeof value === "boolean";
+  if (!isPlainContainer(value)) {
+    return false;
+  }
+  return Object.values(value as object).every((child) => isPlainWithin(child, depth + 1, budget));
+}
+
+function isPlainContainer(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  return Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype;
 }
