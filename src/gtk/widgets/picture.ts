@@ -5,6 +5,17 @@ import { asBool, asEnum, asObject, asString } from "../attrs";
 import { Widget } from "./base";
 import { CONTENT_FIT } from "./enums";
 
+let paintableResolver: (handle: string) => unknown = () => null;
+
+/**
+ * What `handle={…}` resolves through when a view is drawn in the host's own
+ * process; a remote client's handles are resolved by its policy instead, so
+ * a view shows the same picture either way.
+ */
+export function setPaintableResolver(resolver: (handle: string) => unknown): void {
+  paintableResolver = resolver;
+}
+
 /** An image at its own size, scaled to fit. */
 export class GtkPicture extends Widget<Gtk.Picture> {
   static override readonly tag = "gtkpicture";
@@ -25,6 +36,9 @@ export class GtkPicture extends Widget<Gtk.Picture> {
       // by hand — for content that is not a file on disk.
       case "paintable":
         this.widget.set_paintable(asObject<Gdk.Paintable>(value));
+        return true;
+      case "handle":
+        this.widget.set_paintable(asObject<Gdk.Paintable>(paintableResolver(asString(value))));
         return true;
       case "fit":
         this.widget.set_content_fit(

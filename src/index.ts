@@ -12,6 +12,7 @@ import { ROOT_TAG, install } from "./gtk/mirror";
 import { loadStylesheet } from "./gtk/style";
 
 export { loadStylesheet } from "./gtk/style";
+export { setPaintableResolver } from "./gtk/widgets/picture";
 
 export interface StartOptions {
   /** A GTK CSS file to register on the default display before mounting. */
