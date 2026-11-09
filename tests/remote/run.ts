@@ -151,6 +151,64 @@ async function counter(): Promise<void> {
   watched.client.stop()
 }
 
+// The drag is driven by emitting the gesture's own signals: what carry.ts
+// and the listeners hear is the same as from a pointer.
+async function carry(): Promise<void> {
+  const watched = watch('drag', 'drag', 'drag', {})
+  const anchor = watched.anchor
+  expect('carry: first frame', await until(() => widgetsWithClass(anchor.widget, 'tile').length === 1, 3000))
+  const [tile] = widgetsWithClass(anchor.widget, 'tile')
+  const [band] = widgetsWithClass(anchor.widget, 'band')
+  const gesture = dragGestureOf(tile)
+  if (gesture === null || band === undefined) {
+    expect('carry: the tile has a drag and the band is drawn', false)
+    watched.client.stop()
+    return
+  }
+  await until(() => marginsOf(tile) === '10,10', 2000)
+  gesture.emit('drag-begin', 5, 5)
+  expect('carry: the band shows from the press', band.get_visible())
+  gesture.emit('drag-update', 2, 1)
+  expect('carry: short of the threshold nothing moves', marginsOf(tile) === '10,10', marginsOf(tile))
+  gesture.emit('drag-update', 50, 30)
+  expect('carry: the tile follows the pointer on the same frame', marginsOf(tile) === '60,40', marginsOf(tile))
+  expect('carry: the band spans the drag', bandOf(band) === '5,5 50x30', bandOf(band))
+  gesture.emit('drag-end', 50, 30)
+  expect('carry: the band leaves with the drag', !band.get_visible())
+  expect('carry: let go, the tile waits where it was dropped', marginsOf(tile) === '60,40', marginsOf(tile))
+  expect('carry: the client hears the drag carried', await until(() => labelText(anchor, 'carried') === 'true', 2000))
+  expect('carry: a taken drop lands where the client put it', await until(() => marginsOf(tile) === '200,100', 2000), marginsOf(tile))
+  gesture.emit('drag-begin', 5, 5)
+  gesture.emit('drag-update', -40, 0)
+  gesture.emit('drag-end', -40, 0)
+  const endedAt = Date.now()
+  expect('carry: a second drop is held too', marginsOf(tile) === '160,100', marginsOf(tile))
+  const returned = await until(() => marginsOf(tile) === '200,100', 2000)
+  const waitedMs = Date.now() - endedAt
+  expect('carry: a refused drop goes back on the client\'s empty answer', returned && waitedMs < 800, `${waitedMs} ms`)
+  watched.client.stop()
+}
+
+function dragGestureOf(widget: Gtk.Widget): Gtk.GestureDrag | null {
+  const controllers = widget.observe_controllers()
+  for (let index = 0; index < controllers.get_n_items(); index++) {
+    const controller = controllers.get_item(index)
+    if (controller instanceof Gtk.GestureDrag) {
+      return controller
+    }
+  }
+  return null
+}
+
+function marginsOf(widget: Gtk.Widget): string {
+  return `${widget.get_margin_start()},${widget.get_margin_top()}`
+}
+
+function bandOf(widget: Gtk.Widget): string {
+  const [width, height] = widget.get_size_request()
+  return `${marginsOf(widget)} ${width}x${height}`
+}
+
 // What each hostile client should end up as.
 const FAULTS: [string, string, string, ClientStatus][] = [
   ['throw', 'faulty', 'faulty', 'running'],
@@ -205,6 +263,7 @@ async function main(): Promise<number> {
   Gtk.init()
   install()
   await counter()
+  await carry()
   await faults()
   let failed = 0
   for (const [name, passed, detail] of results) {

@@ -7,7 +7,9 @@
 // protocol or a limit throws a ProtocolError, and the caller is expected to
 // stop that client; an attribute GTK rejects is only logged.
 
+import GLib from "gi://GLib";
 import { SElement, SNode, SText } from "../dom/nodes";
+import { setAnswerWaiter } from "../gtk/carry";
 import {
   type HostMessage,
   OP_CALL,
@@ -27,6 +29,17 @@ import { EMBED_TAG, EmbedTable, type Embedder } from "./embed";
 
 export class ProtocolError extends Error {}
 
+// A drop the client never answers — it sent no event listener, or it is
+// stuck — is released anyway after this long.
+const ANSWER_TIMEOUT_MS = 1000;
+
+// A release waiting for the client's answer to an event. `event` is 0 until
+// the event it waits on has been sent.
+interface Answer {
+  event: number;
+  release: () => void;
+}
+
 export class RemoteTree {
   private readonly policy: Policy;
   private readonly send: (message: HostMessage) => void;
@@ -38,6 +51,8 @@ export class RemoteTree {
   private readonly roots = new Map<number, number>();
   private readonly rootIds = new Set<number>();
   private readonly listenerCounts = new Map<number, number>();
+  private answers: Answer[] = [];
+  private eventSequence = 0;
 
   constructor(policy: Policy, send: (message: HostMessage) => void, embedder: Embedder | null = null) {
     this.policy = policy;
@@ -75,6 +90,52 @@ export class RemoteTree {
     this.roots.clear();
     this.rootIds.clear();
     this.listenerCounts.clear();
+    this.releaseAnswers(() => true);
+  }
+
+  /** The client's batch named the last event it answered. */
+  answered(event: unknown): void {
+    if (typeof event !== "number") {
+      return;
+    }
+    this.releaseAnswers((answer) => answer.event > 0 && answer.event <= event);
+  }
+
+  // Ends a carry once the client has had its say about the drop: the event
+  // sent next — the drag's end, fired right after — asks for an answer.
+  private awaitAnswer(release: () => void): void {
+    const answer: Answer = { event: 0, release };
+    this.answers.push(answer);
+    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      if (answer.event === 0) {
+        this.releaseAnswers((candidate) => candidate === answer);
+      }
+      return GLib.SOURCE_REMOVE;
+    });
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANSWER_TIMEOUT_MS, () => {
+      this.releaseAnswers((candidate) => candidate === answer);
+      return GLib.SOURCE_REMOVE;
+    });
+  }
+
+  private releaseAnswers(due: (answer: Answer) => boolean): void {
+    const released = this.answers.filter(due);
+    this.answers = this.answers.filter((answer) => !due(answer));
+    for (const answer of released) {
+      answer.release();
+    }
+  }
+
+  // The answer this event asks for, if a carry is waiting on one.
+  private answerFor(event: number): number | undefined {
+    const waiting = this.answers.filter((answer) => answer.event === 0);
+    if (waiting.length === 0) {
+      return undefined;
+    }
+    for (const answer of waiting) {
+      answer.event = event;
+    }
+    return event;
   }
 
   apply(ops: unknown): void {
@@ -138,8 +199,16 @@ export class RemoteTree {
       this.bind(id, this.embeds.create());
       return;
     }
+    const element = this.buildElement(tag);
+    this.bind(id, element);
+    if (element.widget !== null) {
+      setAnswerWaiter(element.widget, (release) => this.awaitAnswer(release));
+    }
+  }
+
+  private buildElement(tag: string): SElement {
     try {
-      this.bind(id, new SElement(tag));
+      return new SElement(tag);
     } catch (error) {
       throw new ProtocolError(`<${tag}> could not be built: ${String(error)}`);
     }
@@ -278,9 +347,17 @@ export class RemoteTree {
       throw new ProtocolError(`more than ${this.policy.limits.listenersPerNode} listeners on one node`);
     }
     this.listenerCounts.set(id, count);
-    node.addEventListener(type, (event: unknown) => {
-      this.send({ t: "event", id, type, detail: plainDetail(event), state: stateOf(node.widget) });
-    });
+    node.addEventListener(type, (event: unknown) => this.sendEvent(node, id, type, event));
+  }
+
+  private sendEvent(node: SElement, id: number, type: string, event: unknown): void {
+    this.eventSequence += 1;
+    const message: Extract<HostMessage, { t: "event" }> = { t: "event", id, type, detail: plainDetail(event), state: stateOf(node.widget) };
+    const answer = this.answerFor(this.eventSequence);
+    if (answer !== undefined) {
+      message.answer = answer;
+    }
+    this.send(message);
   }
 
   private listenerCountOf(id: number): number {

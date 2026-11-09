@@ -5,7 +5,16 @@
 import Gtk from "gi://Gtk?version=4.0";
 import type { SElement } from "../../dom/nodes";
 import { asAlign, asBool, asNumber, asString } from "../attrs";
+import {
+  setBandedBy,
+  setCarriedBy,
+  setCarry,
+  setCarryThreshold,
+  setGlide,
+  setPlacement,
+} from "../carry";
 import { setDragFiles } from "../dnd";
+import { dragGesture } from "../events";
 import { markInput } from "../inputRegion";
 import { register, unregister } from "../registry";
 import { applyClasses, applyInlineCss } from "../style";
@@ -95,13 +104,13 @@ export abstract class Widget<W extends Gtk.Widget = Gtk.Widget>
         this.setMargin(asNumber(value, 0));
         return true;
       case "margin-top":
-        this.widget.set_margin_top(asNumber(value, 0));
+        setPlacement(this.widget, "top", asNumber(value, 0));
         return true;
       case "margin-bottom":
         this.widget.set_margin_bottom(asNumber(value, 0));
         return true;
       case "margin-start":
-        this.widget.set_margin_start(asNumber(value, 0));
+        setPlacement(this.widget, "start", asNumber(value, 0));
         return true;
       case "margin-end":
         this.widget.set_margin_end(asNumber(value, 0));
@@ -122,6 +131,23 @@ export abstract class Widget<W extends Gtk.Widget = Gtk.Widget>
       // The files this widget can be dragged out as. See dnd.ts.
       case "drag-files":
         setDragFiles(this.widget, value);
+        return true;
+      // A drag that moves widgets in this process. See carry.ts.
+      case "carry":
+        setCarry(this.widget, asString(value));
+        dragGesture(this.node);
+        return true;
+      case "carry-threshold":
+        setCarryThreshold(this.widget, asNumber(value, 0));
+        return true;
+      case "carried-by":
+        setCarriedBy(this.widget, asString(value));
+        return true;
+      case "glide":
+        setGlide(this.widget, asNumber(value, 0));
+        return true;
+      case "banded-by":
+        setBandedBy(this.widget, asString(value));
         return true;
       // Which of a parent's named positions this child occupies. Spelt `place`
       // rather than `slot` so Svelte's own slot handling never sees it.
@@ -149,9 +175,9 @@ export abstract class Widget<W extends Gtk.Widget = Gtk.Widget>
   }
 
   private setMargin(value: number): void {
-    this.widget.set_margin_top(value);
+    setPlacement(this.widget, "top", value);
     this.widget.set_margin_bottom(value);
-    this.widget.set_margin_start(value);
+    setPlacement(this.widget, "start", value);
     this.widget.set_margin_end(value);
   }
 }

@@ -46,9 +46,12 @@ export interface WidgetState {
 // stand-in for it asks the host to call the original.
 export const CALLBACK_KEY = "$callback";
 
+// An event the host waits on — the end of a drag whose widgets are held where
+// they were let go — carries `answer`; the client sends a batch, empty or not,
+// naming it in `answered` once its handlers have run.
 export type ClientMessage =
   | { t: "ready" }
-  | { t: "batch"; ops: Operation[] }
+  | { t: "batch"; ops: Operation[]; answered?: number }
   | { t: "app"; data: unknown }
   | { t: "pong"; seq: number }
   | { t: "error"; instance: number; message: string }
@@ -58,6 +61,6 @@ export type HostMessage =
   | { t: "mount"; instance: number; view: string; props: Record<string, unknown> }
   | { t: "props"; instance: number; props: Record<string, unknown> }
   | { t: "unmount"; instance: number }
-  | { t: "event"; id: number; type: string; detail: unknown; state: WidgetState }
+  | { t: "event"; id: number; type: string; detail: unknown; state: WidgetState; answer?: number }
   | { t: "app"; data: unknown }
   | { t: "ping"; seq: number };

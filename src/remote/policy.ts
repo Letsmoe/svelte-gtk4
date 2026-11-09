@@ -80,8 +80,9 @@ const REFUSED_ATTRIBUTES = new Set([
   "drag-files",
 ]);
 
-// Attributes whose value is a name in gtk/registry.ts.
-const REGISTRY_ATTRIBUTES = new Set(["id", "stack", "group", "capture"]);
+// Attributes whose value is a name in gtk/registry.ts, or a carry group in
+// gtk/carry.ts.
+const REGISTRY_ATTRIBUTES = new Set(["id", "stack", "group", "capture", "carry", "carried-by", "banded-by"]);
 
 // Sizes a client sets, clamped so a typo cannot ask GTK for a gigantic
 // allocation.

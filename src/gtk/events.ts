@@ -1,5 +1,6 @@
 import Gtk from "gi://Gtk?version=4.0";
 import type { EventHandler, SElement } from "../dom/nodes";
+import { beginCarry, endCarry, isCarrying, moveCarry } from "./carry";
 import { DRAG_OUT_EVENTS, DROP_EVENTS, addDragOutListener, addDropListener } from "./dnd";
 
 // GTK4 splits input between widget signals and event controllers, so these
@@ -25,6 +26,8 @@ interface Controllers {
   drag: Gtk.GestureDrag | null;
   // Where the dragged widget sat when the drag began. See `originShift`.
   dragOrigin: Point | null;
+  // Where the press began, in the widget's coordinates.
+  dragStart: Point | null;
 }
 
 const controllers = new WeakMap<SElement, Controllers>();
@@ -146,18 +149,18 @@ function addDragListener(
   }
   const signal = type === "dragmove" ? "drag-update" : "drag-end";
   drag.connect(signal, (gesture, dx, dy) => {
-    const [ok, x, y] = gesture.get_start_point();
-    if (!ok) {
+    const start = slotsFor(node).dragStart;
+    if (start === null) {
       return;
     }
-    const shift = originShift(node);
-    fire(
-      node,
-      type,
-      handler,
-      dragDetail(node, gesture, x, y, dx + shift.x, dy + shift.y),
-    );
+    const travel = pointerTravel(node, dx, dy);
+    fire(node, type, handler, dragDetail(node, gesture, start.x, start.y, travel.x, travel.y));
   });
+}
+
+function pointerTravel(node: SElement, dx: number, dy: number): Point {
+  const shift = originShift(node);
+  return { x: dx + shift.x, y: dy + shift.y };
 }
 
 /**
@@ -231,6 +234,8 @@ function dragDetail(
     state: gesture.get_current_event_state(),
     width: node.widget.get_width(),
     height: node.widget.get_height(),
+    // Whether the press's `carry` group is being moved. See carry.ts.
+    carried: isCarrying(node.widget),
   };
 }
 
@@ -255,26 +260,39 @@ function motionController(node: SElement): Gtk.EventControllerMotion {
   return existing.motion;
 }
 
-function dragGesture(node: SElement): Gtk.GestureDrag {
+/** The press's drag gesture, made on first use by a listener or by `carry`. */
+export function dragGesture(node: SElement): Gtk.GestureDrag {
   const existing = slotsFor(node);
   if (existing.drag === null) {
-    const gesture = new Gtk.GestureDrag();
-    existing.drag = gesture;
-    // Connected before any listener's own, so the origin is recorded whichever
-    // of the three events a view actually subscribes to — and recorded first,
-    // since GTK runs handlers in connection order.
-    gesture.connect("drag-begin", () => {
-      existing.dragOrigin = originOf(node.widget);
-    });
-    node.widget.add_controller(gesture);
+    existing.drag = newDragGesture(node, existing);
   }
   return existing.drag;
+}
+
+// Connected before any listener's own, so the origin is recorded and the
+// carried widgets have moved whichever of the three events a view subscribes
+// to — and first, since GTK runs handlers in connection order.
+function newDragGesture(node: SElement, slots: Controllers): Gtk.GestureDrag {
+  const gesture = new Gtk.GestureDrag();
+  gesture.connect("drag-begin", (_gesture, x, y) => {
+    slots.dragOrigin = originOf(node.widget);
+    slots.dragStart = { x, y };
+    beginCarry(node.widget, { x, y });
+  });
+  gesture.connect("drag-update", (_gesture, dx, dy) => {
+    moveCarry(node.widget, pointerTravel(node, dx, dy));
+  });
+  gesture.connect("drag-end", (_gesture, dx, dy) => {
+    endCarry(node.widget, pointerTravel(node, dx, dy));
+  });
+  node.widget.add_controller(gesture);
+  return gesture;
 }
 
 function slotsFor(node: SElement): Controllers {
   let slots = controllers.get(node);
   if (slots === undefined) {
-    slots = { click: null, motion: null, drag: null, dragOrigin: null };
+    slots = { click: null, motion: null, drag: null, dragOrigin: null, dragStart: null };
     controllers.set(node, slots);
   }
   return slots;

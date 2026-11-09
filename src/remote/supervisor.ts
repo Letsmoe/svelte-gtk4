@@ -163,6 +163,7 @@ export class RemoteClient {
         return;
       case "batch":
         this.applyBatch(message.ops);
+        this.tree.answered(message.answered);
         return;
       case "app":
         if (this.options.onApp !== undefined) {

@@ -102,7 +102,14 @@ function receive(text: string): void {
     console.error("svelte-gtk4 client:", errorText(error));
   }
   flushSync();
-  flushNow();
+  flushNow(answerOf(message));
+}
+
+function answerOf(message: HostMessage): number | undefined {
+  if (message.t !== "event") {
+    return undefined;
+  }
+  return message.answer;
 }
 
 function handle(message: HostMessage): void {
@@ -433,18 +440,22 @@ function queue(operation: Operation): void {
 }
 
 // A node taken out and not put back by the end of the batch is gone.
-function flushNow(): void {
+function flushNow(answered?: number): void {
   flushScheduled = false;
   for (const node of detached) {
     dropIfGone(node);
   }
   detached = new Set();
-  if (pending.length === 0) {
+  if (pending.length === 0 && answered === undefined) {
     return;
   }
   const ops = pending;
   pending = [];
-  send({ t: "batch", ops });
+  if (answered === undefined) {
+    send({ t: "batch", ops });
+    return;
+  }
+  send({ t: "batch", ops, answered });
 }
 
 function dropIfGone(node: SNode): void {

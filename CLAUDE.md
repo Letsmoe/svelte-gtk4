@@ -161,8 +161,13 @@ Deliberately **not** wrapped:
   keeps a zero-size `input` marker so the surface stays click-through.
 - **Widget margins are not animatable and the `css` attribute is not for
   per-frame use** — every change builds a new `CssProvider` for the whole
-  display. Drive a glide with `widget.add_tick_callback` and set the margin
-  each frame (`../neoshell/src/extensions/neoshell/glide.ts`).
+  display. A drag that moves widgets is `carry.ts`: `carry="group"` (and
+  `carry-threshold`) on the pressed widget, `carried-by="group"` and
+  `glide={ms}` on what it moves, `banded-by="group"` on a rubber band. The
+  host moves them on the pointer's frame, holds them where they were let go
+  until the view answers the drop, then glides them to their margins. Drag
+  details carry `carried`. A remote client answers through the batch's
+  `answered`.
 - **File drag and drop is `dnd.ts`:** `ondropenter`/`ondropleave`/`ondrop`
   (detail `{paths, uris, x, y}`: local files, and the remote URIs a browser
   offers, for the app to fetch) on the receiving widget, `drag-files={paths}` on
