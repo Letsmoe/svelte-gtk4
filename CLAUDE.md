@@ -164,7 +164,8 @@ Deliberately **not** wrapped:
   display. A drag that moves widgets is `carry.ts`: `carry="group"` (and
   `carry-threshold`) on the pressed widget, `carried-by="group"` and
   `glide={ms}` on what it moves, `banded-by="group"` on a rubber band. The
-  host moves them on the pointer's frame, holds them where they were let go
+  host moves them on the pointer's frame (raised over their siblings until
+  they land), holds them where they were let go
   until the view answers the drop, then glides them to their margins. Drag
   details carry `carried`. A remote client answers through the batch's
   `answered`.

@@ -48,6 +48,9 @@ interface Carried {
   glide: Glide | null;
   // Where the widget was let go, held until the drop is answered.
   held: Point | null;
+  // Raised over its siblings for the drag; `previous` is where it goes back.
+  raised: boolean;
+  previous: Gtk.Widget | null;
 }
 
 interface Carrier {
@@ -164,9 +167,70 @@ export function moveCarry(widget: Gtk.Widget, travel: Point): void {
   if (!group.carrying) {
     return;
   }
+  raiseMembers(group);
   for (const record of group.members) {
     place(record);
   }
+}
+
+// Carried widgets are drawn over their siblings until they land — an overlay
+// draws its children in order, and a dragged icon passes over the others.
+// Each goes back to its place in the order once it has landed.
+function raiseMembers(group: Group): void {
+  for (const record of group.members) {
+    if (hasLaterOutsider(record.widget, group)) {
+      raiseAll(group);
+      return;
+    }
+  }
+}
+
+function hasLaterOutsider(widget: Gtk.Widget, group: Group): boolean {
+  let sibling = widget.get_next_sibling();
+  while (sibling !== null) {
+    if (!isMember(sibling, group)) {
+      return true;
+    }
+    sibling = sibling.get_next_sibling();
+  }
+  return false;
+}
+
+function isMember(widget: Gtk.Widget, group: Group): boolean {
+  const record = carriedWidgets.get(widget);
+  return record !== undefined && group.members.has(record);
+}
+
+function raiseAll(group: Group): void {
+  for (const record of group.members) {
+    raise(record);
+  }
+}
+
+function raise(record: Carried): void {
+  const parent = record.widget.get_parent();
+  if (parent === null) {
+    return;
+  }
+  if (!record.raised) {
+    record.raised = true;
+    record.previous = record.widget.get_prev_sibling();
+  }
+  record.widget.insert_before(parent, null);
+}
+
+function lower(record: Carried): void {
+  if (!record.raised) {
+    return;
+  }
+  record.raised = false;
+  const previous = record.previous;
+  record.previous = null;
+  const parent = record.widget.get_parent();
+  if (parent === null || (previous !== null && previous.get_parent() !== parent)) {
+    return;
+  }
+  record.widget.insert_after(parent, previous);
 }
 
 export function endCarry(widget: Gtk.Widget, travel: Point): void {
@@ -213,6 +277,7 @@ function releaseOne(record: Carried, gliding: boolean): void {
   record.held = null;
   if (!gliding || record.glideMs === 0 || !record.widget.get_mapped()) {
     place(record);
+    lower(record);
     return;
   }
   startGlide(record, from);
@@ -238,19 +303,22 @@ function stepGlide(record: Carried, glide: Glide, now: number): boolean {
   const progress = Math.min(1, (now - glide.startedAt) / (record.glideMs * 1000));
   const remaining = 1 - easeOut(progress);
   glide.current = { x: glide.from.x * remaining, y: glide.from.y * remaining };
-  if (progress >= 1) {
-    record.glide = null;
+  if (progress < 1) {
+    place(record);
+    return GLib.SOURCE_CONTINUE;
   }
+  record.glide = null;
   place(record);
-  return progress < 1;
+  lower(record);
+  return GLib.SOURCE_REMOVE;
 }
 
 function stopGlide(record: Carried): void {
-  if (record.glide === null) {
-    return;
+  if (record.glide !== null) {
+    record.widget.remove_tick_callback(record.glide.tickId);
+    record.glide = null;
   }
-  record.widget.remove_tick_callback(record.glide.tickId);
-  record.glide = null;
+  lower(record);
 }
 
 function place(record: Carried): void {
@@ -311,6 +379,8 @@ function recordOf(widget: Gtk.Widget): Carried {
     glideMs: 0,
     glide: null,
     held: null,
+    raised: false,
+    previous: null,
   };
   carriedWidgets.set(widget, record);
   return record;
