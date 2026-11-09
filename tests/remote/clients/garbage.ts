@@ -27,6 +27,9 @@ function send(message: unknown): void {
   if (message.props.fault === 'remove-root') {
     send({ t: 'batch', ops: [[5, root]] })
   }
+  if (message.props.fault === 'embed-children') {
+    send({ t: 'batch', ops: [[0, 1, 'gtkembed'], [0, 2, 'gtkbox'], [4, root, 1, 0], [4, 1, 2, 0]] })
+  }
   if (message.props.fault === 'not-json') {
     runner.send('{ this is not json')
   }

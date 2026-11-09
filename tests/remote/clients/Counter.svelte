@@ -15,4 +15,5 @@
   {#if total > 1}
     <gtklabel class="many">many</gtklabel>
   {/if}
+  <gtkembed class="embedded" view="greeting" props={{ name: typed }}></gtkembed>
 </gtkbox>

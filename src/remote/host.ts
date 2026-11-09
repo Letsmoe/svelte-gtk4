@@ -23,12 +23,14 @@ import {
   type WidgetState,
 } from "./protocol";
 import { type Policy, REFUSED } from "./policy";
+import { EMBED_TAG, EmbedTable, type Embedder } from "./embed";
 
 export class ProtocolError extends Error {}
 
 export class RemoteTree {
   private readonly policy: Policy;
   private readonly send: (message: HostMessage) => void;
+  private readonly embeds: EmbedTable;
   private readonly nodes = new Map<number, SNode>();
   private readonly idsByNode = new Map<SNode, number>();
   private readonly anchors = new Map<number, SElement>();
@@ -37,9 +39,10 @@ export class RemoteTree {
   private readonly rootIds = new Set<number>();
   private readonly listenerCounts = new Map<number, number>();
 
-  constructor(policy: Policy, send: (message: HostMessage) => void) {
+  constructor(policy: Policy, send: (message: HostMessage) => void, embedder: Embedder | null = null) {
     this.policy = policy;
     this.send = send;
+    this.embeds = new EmbedTable(embedder);
   }
 
   /** Where an instance's view goes; call before sending its mount. */
@@ -63,6 +66,7 @@ export class RemoteTree {
 
   /** The client is gone: every view it drew comes off screen. The anchors stay for its successor. */
   reset(): void {
+    this.embeds.disposeAll();
     for (const anchor of this.anchors.values()) {
       emptyNode(anchor);
     }
@@ -130,6 +134,10 @@ export class RemoteTree {
     if (!this.policy.allowsTag(tag)) {
       throw new ProtocolError(`<${tag}> is not allowed`);
     }
+    if (tag === EMBED_TAG) {
+      this.bind(id, this.embeds.create());
+      return;
+    }
     try {
       this.bind(id, new SElement(tag));
     } catch (error) {
@@ -167,6 +175,9 @@ export class RemoteTree {
       console.warn(`svelte-gtk4 host: refused ${name} on <${node.tagName}>`);
       return;
     }
+    if (this.embeds.setAttribute(node, name, checked)) {
+      return;
+    }
     try {
       node.setAttribute(name, checked);
     } catch (error) {
@@ -179,6 +190,9 @@ export class RemoteTree {
     const child = this.node(childId);
     if (this.rootIds.has(childId)) {
       throw new ProtocolError("a root cannot be inserted");
+    }
+    if (this.embeds.isEmbed(parent)) {
+      throw new ProtocolError("an embed takes no children");
     }
     if (child.contains(parent)) {
       throw new ProtocolError("a node cannot go inside itself");
@@ -234,12 +248,18 @@ export class RemoteTree {
     this.forget(node);
   }
 
+  // What an embed holds is the host's, not the client's, so it is disposed
+  // whole rather than walked.
   private forget(node: SNode): void {
     const id = this.idsByNode.get(node);
     if (id !== undefined) {
       this.idsByNode.delete(node);
       this.nodes.delete(id);
       this.listenerCounts.delete(id);
+    }
+    if (node instanceof SElement && this.embeds.isEmbed(node)) {
+      this.embeds.dispose(node);
+      return;
     }
     let child = node.firstChildNode;
     while (child !== null) {
@@ -394,11 +414,29 @@ function stateOf(widget: any): WidgetState {
   }
   state.width = widget.get_width();
   state.height = widget.get_height();
+  placeInRoot(state, widget);
   readInto(state, "text", widget, "get_text");
   readInto(state, "value", widget, "get_value");
   readInto(state, "active", widget, "get_active");
   readInto(state, "selected", widget, "get_selected");
   return state;
+}
+
+// Where the widget sits in its window, which a view needs to place something
+// beside it, like a menu under a bar button.
+function placeInRoot(state: WidgetState, widget: any): void {
+  const root = widget.get_root();
+  if (root === null) {
+    return;
+  }
+  const [found, bounds] = widget.compute_bounds(root);
+  if (!found) {
+    return;
+  }
+  state.x = bounds.get_x();
+  state.y = bounds.get_y();
+  state.rootWidth = root.get_width();
+  state.rootHeight = root.get_height();
 }
 
 function readInto(state: WidgetState, key: keyof WidgetState, widget: any, getter: string): void {

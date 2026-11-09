@@ -242,8 +242,10 @@ function listenerAdded(node: SElement, type: string, handler: EventHandler): voi
 }
 
 // What a view reads off a widget, answered from the last event's state, and
-// the few widget methods a view calls, sent on as operations.
-function widgetStandIn(node: SElement): Record<string, () => unknown> {
+// the few widget methods a view calls, sent on as operations. get_root and
+// compute_bounds answer the shapes GTK's do, from where the host said the
+// widget sits in its window.
+function widgetStandIn(node: SElement): Record<string, (...args: unknown[]) => unknown> {
   return {
     get_width: () => orDefault(stateOf(node).width, 0),
     get_height: () => orDefault(stateOf(node).height, 0),
@@ -251,7 +253,25 @@ function widgetStandIn(node: SElement): Record<string, () => unknown> {
     get_value: () => orDefault(stateOf(node).value, 0),
     get_active: () => orDefault(stateOf(node).active, false),
     get_selected: () => orDefault(stateOf(node).selected, 0),
+    get_root: () => rootStandIn(stateOf(node)),
+    compute_bounds: () => [stateOf(node).x !== undefined, boundsStandIn(stateOf(node))],
     grab_focus: () => callMethod(node, "grab_focus"),
+  };
+}
+
+function rootStandIn(state: WidgetState): Record<string, () => number> {
+  return {
+    get_width: () => orDefault(state.rootWidth, 0),
+    get_height: () => orDefault(state.rootHeight, 0),
+  };
+}
+
+function boundsStandIn(state: WidgetState): Record<string, () => number> {
+  return {
+    get_x: () => orDefault(state.x, 0),
+    get_y: () => orDefault(state.y, 0),
+    get_width: () => orDefault(state.width, 0),
+    get_height: () => orDefault(state.height, 0),
   };
 }
 

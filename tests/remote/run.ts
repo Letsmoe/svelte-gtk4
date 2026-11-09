@@ -9,10 +9,10 @@ import '../../src/gtk/clock'
 import '../../src/dom/globals'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk?version=4.0'
-import { SElement } from '../../src/dom/nodes'
+import { SElement, SText } from '../../src/dom/nodes'
 import { install } from '../../src/gtk/mirror'
 import { defaultPolicy, RemoteClient } from '../../src/remote/index'
-import type { ClientStatus } from '../../src/remote/index'
+import type { ClientStatus, Embedder } from '../../src/remote/index'
 
 const [runner, dist] = ARGV
 
@@ -31,6 +31,7 @@ function watch(name: string, bundle: string, view: string, props: Record<string,
     name,
     argv: [runner, `${dist}/${bundle}.js`, '--turn-ms', '300', '--memory-mb', '32'],
     policy: defaultPolicy(name),
+    embedder: greetingEmbedder,
     onStatus: (status, detail) => {
       statuses.push(status)
       details.push(detail)
@@ -39,6 +40,31 @@ function watch(name: string, bundle: string, view: string, props: Record<string,
   client.mount(view, props, anchor)
   client.start()
   return { client, anchor, statuses, details }
+}
+
+// The host's side of a <gtkembed view="greeting">: a label the client never sees.
+const greetingEmbedder: Embedder = {
+  embed(anchor, view, props) {
+    if (view !== 'greeting') {
+      return null
+    }
+    const label = new SElement('gtklabel')
+    label.setAttribute('class', 'greeting')
+    const text = new SText(greetingOf(props))
+    label.appendChild(text)
+    anchor.appendChild(label)
+    return {
+      update: (next) => {
+        text.nodeValue = greetingOf(next)
+      },
+      dispose: () => anchor.removeChild(label),
+    }
+  },
+}
+
+function greetingOf(props: unknown): string {
+  const name = (props as { name?: unknown } | null)?.name
+  return `hello ${String(name)}`
 }
 
 function widgetsWithClass(root: Gtk.Widget, name: string): Gtk.Widget[] {
@@ -98,6 +124,7 @@ async function counter(): Promise<void> {
   const [field] = widgetsWithClass(anchor.widget, 'field')
   ;(field as Gtk.Entry).set_text('hello')
   expect('counter: typed text comes back', await until(() => labelText(anchor, 'typed') === 'hello', 2000))
+  expect('counter: an embed shows the host\'s view with the client\'s props', await until(() => labelText(anchor, 'greeting') === 'hello hello', 2000))
   watched.client.update(1, { start: 5 })
   expect('counter: new props redraw', await until(() => labelText(anchor, 'count') === 'count 6', 2000))
   expect('counter: an {#if} branch appears', await until(() => labelText(anchor, 'many') === 'many', 2000))
@@ -117,6 +144,7 @@ const FAULTS: [string, string, string, ClientStatus][] = [
   ['unknown-id', 'garbage', 'garbage', 'restarting'],
   ['remove-root', 'garbage', 'garbage', 'restarting'],
   ['not-json', 'garbage', 'garbage', 'restarting'],
+  ['embed-children', 'garbage', 'garbage', 'restarting'],
   ['silent', 'garbage', 'garbage', 'restarting'],
 ]
 

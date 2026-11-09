@@ -10,6 +10,7 @@
 import GLib from "gi://GLib";
 import type { SElement } from "../dom/nodes";
 import { ProtocolError, RemoteTree } from "./host";
+import type { Embedder } from "./embed";
 import type { Policy } from "./policy";
 import { ClientProcess } from "./process";
 import type { ClientMessage, HostMessage } from "./protocol";
@@ -26,6 +27,8 @@ export interface RemoteClientOptions {
   onApp?(data: unknown): void;
   /** An app message every new process gets first, before any view mounts. */
   greeting?(): unknown;
+  /** Fills the client's `<gtkembed>` boxes; without it they stay empty. */
+  embedder?: Embedder;
   /** The client's status changed, or one of its views failed to mount. */
   onStatus?(status: ClientStatus, detail: string): void;
 }
@@ -63,7 +66,7 @@ export class RemoteClient {
 
   constructor(options: RemoteClientOptions) {
     this.options = options;
-    this.tree = new RemoteTree(options.policy, (message) => this.send(message));
+    this.tree = new RemoteTree(options.policy, (message) => this.send(message), embedderOf(options));
   }
 
   start(): void {
@@ -280,4 +283,11 @@ export class RemoteClient {
       this.options.onStatus(status, detail);
     }
   }
+}
+
+function embedderOf(options: RemoteClientOptions): Embedder | null {
+  if (options.embedder === undefined) {
+    return null;
+  }
+  return options.embedder;
 }

@@ -31,6 +31,11 @@ export type Operation = unknown[];
 export interface WidgetState {
   width?: number;
   height?: number;
+  // The widget's origin in its window, and the window's size.
+  x?: number;
+  y?: number;
+  rootWidth?: number;
+  rootHeight?: number;
   text?: string;
   value?: number;
   active?: boolean;

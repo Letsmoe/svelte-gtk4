@@ -4,6 +4,7 @@
 // the client's own namespace instead.
 
 import { isKnownTag } from "../gtk/widgets";
+import { EMBED_TAG } from "./embed";
 
 export const REFUSED = Symbol("refused");
 
@@ -72,7 +73,7 @@ const ALLOWED_CALLS = new Set(["grab_focus"]);
 export function defaultPolicy(namespace: string): Policy {
   return {
     limits: DEFAULT_LIMITS,
-    allowsTag: (tag) => isKnownTag(tag) && !REFUSED_TAGS.has(tag),
+    allowsTag: (tag) => tag === EMBED_TAG || (isKnownTag(tag) && !REFUSED_TAGS.has(tag)),
     attribute: (_tag, name, value) => checkedAttribute(namespace, name, value),
     allowsEvent: (_tag, type) => type.length > 0 && type.length < 64,
     allowsCall: (_tag, method) => ALLOWED_CALLS.has(method),
