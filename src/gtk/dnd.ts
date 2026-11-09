@@ -4,6 +4,9 @@
 //   ondropenter / ondropleave   a drag carrying files is over the widget / left
 //   ondrop                      detail {paths, uris, image, x, y}
 //   drag-files={paths}          the widget can be dragged out as those files
+//   ondragoutbegin / ondragoutend   a drag out of it started / ended, dropped
+//                               or not; the widget must outlive the drag, or
+//                               GTK cancels it
 //
 // paths are the local files; uris are the URIs without a local path (what a
 // browser offers for a dragged image or link), left for the app to fetch.
@@ -22,6 +25,7 @@ import Gtk from "gi://Gtk?version=4.0";
 import type { EventHandler, SElement } from "../dom/nodes";
 
 export const DROP_EVENTS = ["drop", "dropenter", "dropleave"];
+export const DRAG_OUT_EVENTS = ["dragoutbegin", "dragoutend"];
 
 const URI_LIST = "text/uri-list";
 // Sources differ in what they allow: Firefox under Hyprland offers a dragged
@@ -40,6 +44,7 @@ interface DropState {
 interface DragSourceState {
   source: Gtk.DragSource;
   paths: string[];
+  listeners: { type: string; run: () => void }[];
 }
 
 const dropStates = new WeakMap<SElement, DropState>();
@@ -200,22 +205,40 @@ function addUri(dropped: DroppedUris, uri: string): void {
 
 /** Makes `widget` draggable as `paths`; an empty list stops it being one. */
 export function setDragFiles(widget: Gtk.Widget, value: unknown): void {
-  const paths = pathListOf(value);
+  dragSourceFor(widget).paths = pathListOf(value);
+}
+
+export function addDragOutListener(node: SElement, type: string, handler: EventHandler, fire: Fire): void {
+  const state = dragSourceFor(node.widget);
+  state.listeners.push({ type, run: () => fire(node, type, handler, null) });
+}
+
+function dragSourceFor(widget: Gtk.Widget): DragSourceState {
   const existing = dragSources.get(widget);
   if (existing !== undefined) {
-    existing.paths = paths;
-    return;
+    return existing;
   }
-  const state: DragSourceState = { source: new Gtk.DragSource(), paths };
+  const state: DragSourceState = { source: new Gtk.DragSource(), paths: [], listeners: [] };
   state.source.set_actions(Gdk.DragAction.COPY);
   state.source.connect("prepare", () => contentFor(state.paths));
   // The widget itself, as it looks now, follows the pointer.
   state.source.connect("drag-begin", (source, _drag) => {
     const icon = Gtk.WidgetPaintable.new(widget);
     source.set_icon(icon, widget.get_width() / 2, widget.get_height() / 2);
+    runListeners(state, "dragoutbegin");
   });
+  state.source.connect("drag-end", () => runListeners(state, "dragoutend"));
   widget.add_controller(state.source);
   dragSources.set(widget, state);
+  return state;
+}
+
+function runListeners(state: DragSourceState, type: string): void {
+  for (const listener of state.listeners) {
+    if (listener.type === type) {
+      listener.run();
+    }
+  }
 }
 
 // Offered as text/uri-list bytes, which every receiver understands; GTK ones

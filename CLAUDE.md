@@ -166,7 +166,9 @@ Deliberately **not** wrapped:
 - **File drag and drop is `dnd.ts`:** `ondropenter`/`ondropleave`/`ondrop`
   (detail `{paths, uris, x, y}`: local files, and the remote URIs a browser
   offers, for the app to fetch) on the receiving widget, `drag-files={paths}` on
-  one that can be dragged out. A layer surface only receives drops inside its
+  one that can be dragged out, with `ondragoutbegin`/`ondragoutend` around a
+  drag out of it — the widget must stay mounted until the end, or GTK cancels
+  the drag. A layer surface only receives drops inside its
   input region.
 - **A drag on a moving widget needs origin compensation** — `events.ts`
   already adds the widget's own travel back into `dx`/`dy`, so a view may

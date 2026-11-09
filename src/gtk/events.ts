@@ -1,6 +1,6 @@
 import Gtk from "gi://Gtk?version=4.0";
 import type { EventHandler, SElement } from "../dom/nodes";
-import { DROP_EVENTS, addDropListener } from "./dnd";
+import { DRAG_OUT_EVENTS, DROP_EVENTS, addDragOutListener, addDropListener } from "./dnd";
 
 // GTK4 splits input between widget signals and event controllers, so these
 // names have no signal to connect to and get a controller instead.
@@ -43,6 +43,10 @@ export function addListener(
   }
   if (DROP_EVENTS.includes(type)) {
     addDropListener(node, type, handler, fire);
+    return;
+  }
+  if (DRAG_OUT_EVENTS.includes(type)) {
+    addDragOutListener(node, type, handler, fire);
     return;
   }
   const signal = signalNameOf(type);
