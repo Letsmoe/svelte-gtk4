@@ -97,6 +97,7 @@ another widget by name (`stack`, `group`, `capture`).
 | `gtkfixed` | `Gtk.Fixed` | by `x` / `y` | — |
 | `gtkframe` | `Gtk.Frame` | one | `label`, `label-align` |
 | `gtkaspectframe` | `Gtk.AspectFrame` | one | `ratio`, `obey-child`, `xalign`, `yalign` |
+| `gtkclamp` | own widget | one | `maximum` (px the child may take, centred; 0 is no cap); reports `onwidth-changed` after its width changes |
 | `gtkexpander` | `Gtk.Expander` | one | `label`, `expanded`, `markup`, `resize-toplevel` |
 | `gtkrevealer` | `Gtk.Revealer` | one | `reveal`, `transition`, `duration` |
 | `gtkscrolledwindow` | `Gtk.ScrolledWindow` | one | `hscroll`, `vscroll`, `frame`, `kinetic`, `overlay-scrolling`, `min-` / `max-content-width` / `-height`, `propagate-width` / `-height` |

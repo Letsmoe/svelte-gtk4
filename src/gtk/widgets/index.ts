@@ -11,6 +11,7 @@ import { GtkButton } from "./button";
 import { GtkCalendar } from "./calendar";
 import { GtkCenterBox } from "./centerbox";
 import { GtkCheckButton } from "./checkbutton";
+import { GtkClamp } from "./clamp";
 import { GtkColorButton } from "./colorbutton";
 import { GtkDrawingArea } from "./drawingarea";
 import { GtkDropDown } from "./dropdown";
@@ -82,6 +83,7 @@ const CLASSES: MountClass[] = [
   GtkFixed,
   GtkFrame,
   GtkAspectFrame,
+  GtkClamp,
   GtkExpander,
   GtkRevealer,
   GtkScrolledWindow,

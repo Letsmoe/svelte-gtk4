@@ -8,6 +8,7 @@
   let checked = $state(true);
   let expanded = $state(true);
   let size = $state(1);
+  let clampWidth = $state(0);
 
   const draw = (_area: unknown, cr: any, width: number, height: number) => {
     cr.setSourceRGBA(0.4, 0.6, 1, 1);
@@ -106,6 +107,14 @@
             </gtkoverlay>
           </gtkaspectframe>
         </gtkframe>
+
+        <gtkclamp
+          maximum={240}
+          onwidth-changed={(event: { target: { widget: { get_width(): number } } }) =>
+            (clampWidth = event.target.widget.get_width())}
+        >
+          <gtklabel wrap>A clamp {clampWidth} pixels wide holds this text to 240 of them.</gtklabel>
+        </gtkclamp>
 
         <gtkexpander label="An expander" expanded={expanded}>
           <gtkrevealer reveal={expanded} transition="slide-down">
