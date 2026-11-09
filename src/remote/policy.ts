@@ -155,7 +155,7 @@ function cssAttribute(value: unknown): unknown {
   if (!declarations.every(isSafeDeclaration)) {
     return REFUSED;
   }
-  return declarations.join("; ");
+  return declarations.map((declaration) => `${declaration};`).join(" ");
 }
 
 function isSafeDeclaration(declaration: string): boolean {
