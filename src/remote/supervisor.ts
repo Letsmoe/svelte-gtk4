@@ -24,6 +24,8 @@ export interface RemoteClientOptions {
   policy: Policy;
   /** Messages from the client's app layer; reply with `sendApp`. */
   onApp?(data: unknown): void;
+  /** An app message every new process gets first, before any view mounts. */
+  greeting?(): unknown;
   /** The client's status changed, or one of its views failed to mount. */
   onStatus?(status: ClientStatus, detail: string): void;
 }
@@ -168,6 +170,9 @@ export class RemoteClient {
       return;
     }
     this.ready = true;
+    if (this.options.greeting !== undefined) {
+      this.send({ t: "app", data: this.options.greeting() });
+    }
     this.setStatus("running", "");
     for (const [instance, mounted] of this.views) {
       this.send({ t: "mount", instance, view: mounted.view, props: mounted.props });
