@@ -16,6 +16,9 @@ import type Gtk from "gi://Gtk?version=4.0";
 // none. Who counts as the answer is the press's AnswerWaiter: the next idle
 // for a view in this process, the client's next batch for a remote one.
 //
+// A widget with a `glide` also slides when its view moves it outside a drag,
+// so neighbours a drop pushes aside move rather than jump.
+//
 // A widget with `banded-by="name"` is the group's rubber band: shown while
 // the drag is on, over its siblings, spanning its start point to the
 // pointer, in the pressed widget's coordinates. It suits a press and a band
@@ -122,12 +125,41 @@ export function setPlacement(widget: Gtk.Widget, edge: "start" | "top", value: n
     setMargin(widget, edge, value);
     return;
   }
+  const shown = shownAt(record);
   if (edge === "start") {
     record.base = { x: value, y: record.base.y };
   } else {
     record.base = { x: record.base.x, y: value };
   }
+  if (glidesToPlacement(record, shown)) {
+    startGlide(record, { x: shown.x - record.base.x, y: shown.y - record.base.y });
+    return;
+  }
   place(record);
+}
+
+// Where the widget is drawn now: its margins plus whatever shift it shows.
+function shownAt(record: Carried): Point {
+  const shift = shiftOf(record);
+  return { x: record.base.x + shift.x, y: record.base.y + shift.y };
+}
+
+// A widget with a glide slides to a new placement as well, unless a drag is
+// carrying it or holding it for an answer: a placement changed under the
+// pointer would jump, and a held one glides on release.
+function glidesToPlacement(record: Carried, shown: Point): boolean {
+  if (record.glideMs === 0 || record.held !== null || !record.widget.get_mapped()) {
+    return false;
+  }
+  if (isTravelling(record)) {
+    return false;
+  }
+  return shown.x !== record.base.x || shown.y !== record.base.y;
+}
+
+function isTravelling(record: Carried): boolean {
+  const group = groups.get(record.group);
+  return group !== undefined && group.dragging && group.carrying && group.members.has(record);
 }
 
 /** Whether the drag on this pressed widget has passed its threshold. */
@@ -347,7 +379,7 @@ function shiftOf(record: Carried): Point {
     return record.glide.current;
   }
   const group = groups.get(record.group);
-  if (group === undefined || !group.dragging || !group.carrying || !group.members.has(record)) {
+  if (group === undefined || !isTravelling(record)) {
     return ORIGIN;
   }
   return group.travel;

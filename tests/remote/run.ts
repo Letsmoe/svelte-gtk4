@@ -174,14 +174,18 @@ async function counter(): Promise<void> {
 
 // The drag is driven by emitting the gesture's own signals: what carry.ts
 // and the listeners hear is the same as from a pointer.
+// It runs in a window on screen: only a mapped widget glides.
 async function carry(): Promise<void> {
   const watched = watch('drag', 'drag', 'drag', {})
   const anchor = watched.anchor
+  const window = new Gtk.Window({ child: anchor.widget as Gtk.Widget, default_width: 400, default_height: 300 })
+  window.present()
   expect('carry: first frame', await until(() => widgetsWithClass(anchor.widget, 'tile').length === 1, 3000))
   const [tile] = widgetsWithClass(anchor.widget, 'tile')
   const [band] = widgetsWithClass(anchor.widget, 'band')
+  const [neighbour] = widgetsWithClass(anchor.widget, 'neighbour')
   const gesture = dragGestureOf(tile)
-  if (gesture === null || band === undefined) {
+  if (gesture === null || band === undefined || neighbour === undefined) {
     expect('carry: the tile has a drag and the band is drawn', false)
     watched.client.stop()
     return
@@ -196,11 +200,13 @@ async function carry(): Promise<void> {
   expect('carry: the band spans the drag', bandOf(band) === '5,5 50x30', bandOf(band))
   expect('carry: the tile is drawn over the band it came before', tile.get_next_sibling() === null)
   gesture.emit('drag-end', 50, 30)
+  const neighbourGlide = glidesTo(neighbour, '300,200')
   expect('carry: the band leaves with the drag', !band.get_visible())
   expect('carry: let go, the tile waits where it was dropped', marginsOf(tile) === '60,40', marginsOf(tile))
   expect('carry: the client hears the drag carried', await until(() => labelText(anchor, 'carried') === 'true', 2000))
   expect('carry: a taken drop lands where the client put it', await until(() => marginsOf(tile) === '200,100', 2000), marginsOf(tile))
-  expect('carry: landed, the tile is back in its place in the order', tile.get_next_sibling() === band)
+  expect('carry: landed, the tile is back in its place in the order', tile.get_next_sibling() === neighbour)
+  expect('carry: a moved neighbour with a glide slides there', await neighbourGlide, marginsOf(neighbour))
   gesture.emit('drag-begin', 5, 5)
   gesture.emit('drag-update', -40, 0)
   gesture.emit('drag-end', -40, 0)
@@ -210,6 +216,7 @@ async function carry(): Promise<void> {
   const waitedMs = Date.now() - endedAt
   expect('carry: a refused drop goes back on the client\'s empty answer', returned && waitedMs < 800, `${waitedMs} ms`)
   watched.client.stop()
+  window.destroy()
 }
 
 function dragGestureOf(widget: Gtk.Widget): Gtk.GestureDrag | null {
@@ -221,6 +228,18 @@ function dragGestureOf(widget: Gtk.Widget): Gtk.GestureDrag | null {
     }
   }
   return null
+}
+
+// Reaches `target`, and was seen somewhere between on the way.
+async function glidesTo(widget: Gtk.Widget, target: string): Promise<boolean> {
+  const start = marginsOf(widget)
+  let between = false
+  const reached = await until(() => {
+    const now = marginsOf(widget)
+    between = between || (now !== start && now !== target)
+    return now === target
+  }, 2000)
+  return reached && between
 }
 
 function marginsOf(widget: Gtk.Widget): string {
