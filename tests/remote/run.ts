@@ -165,6 +165,10 @@ async function counter(): Promise<void> {
   watched.client.update(1, { start: 5 })
   expect('counter: new props redraw', await until(() => labelText(anchor, 'count') === 'count 6', 2000))
   expect('counter: an {#if} branch appears', await until(() => labelText(anchor, 'many') === 'many', 2000))
+  expect(
+    'counter: a branch replacing another as a one-child widget\'s child stays',
+    await until(() => labelText(anchor, 'swap-many') === 'many', 2000),
+  )
   watched.client.stop()
 }
 

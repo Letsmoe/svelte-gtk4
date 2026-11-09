@@ -175,7 +175,10 @@ export class GtkWindow extends Widget<Gtk.Window> {
       this.widget.set_titlebar(null);
       return;
     }
-    this.widget.set_child(null);
+    // A replacing child is inserted before the old one leaves.
+    if (this.widget.get_child() === child.widget) {
+      this.widget.set_child(null);
+    }
   }
 
   private assignLock(assignment: LockAssignment | null): void {

@@ -31,10 +31,13 @@ export class GtkOverlay extends Widget<Gtk.Overlay> {
   }
 
   override remove(child: SElement): void {
-    if (!child.hasAttribute("overlay")) {
-      this.widget.set_child(null);
+    if (child.hasAttribute("overlay")) {
+      this.widget.remove_overlay(child.widget);
       return;
     }
-    this.widget.remove_overlay(child.widget);
+    // A replacing main child is inserted before the old one leaves.
+    if (this.widget.get_child() === child.widget) {
+      this.widget.set_child(null);
+    }
   }
 }

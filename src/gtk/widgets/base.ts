@@ -188,7 +188,12 @@ export abstract class Bin<W extends Gtk.Widget = any> extends Widget<W> {
     (this.widget as any).set_child(child.widget);
   }
 
-  override remove(_child: SElement): void {
+  // A branch that replaces another inserts its child before the old one is
+  // removed, so the old one's removal must not clear the new child.
+  override remove(child: SElement): void {
+    if ((this.widget as any).get_child() !== child.widget) {
+      return;
+    }
     (this.widget as any).set_child(null);
   }
 }

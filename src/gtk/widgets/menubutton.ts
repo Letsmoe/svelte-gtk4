@@ -54,6 +54,9 @@ export class GtkMenuButton extends FramedButton<Gtk.MenuButton> {
       this.widget.set_popover(null);
       return;
     }
-    this.widget.set_child(null);
+    // A replacing child is inserted before the old one leaves.
+    if (this.widget.get_child() === child.widget) {
+      this.widget.set_child(null);
+    }
   }
 }

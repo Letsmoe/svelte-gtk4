@@ -23,6 +23,13 @@
     <gtklabel class="many">many</gtklabel>
   {/if}
   <gtkembed class="embedded" view="greeting" props={{ name: typed }}></gtkembed>
+  <gtkscrolledwindow>
+    {#if total > 1}
+      <gtklabel class="swap-many">many</gtklabel>
+    {:else}
+      <gtklabel class="swap-few">few</gtklabel>
+    {/if}
+  </gtkscrolledwindow>
   <gtkbox class="sized" css="min-width: 30px; transform: translateX(4px) scale(1.02);"></gtkbox>
   <gtkbox class="smuggled" css="min-width: 30px; background-image: url(file:///etc/passwd)"></gtkbox>
   <gtkbox class="dragged" drag-files={['known', 'made-up']}></gtkbox>
