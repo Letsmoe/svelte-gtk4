@@ -1,0 +1,17 @@
+[package]
+name = "svelte-gtk4-runner"
+version = "0.0.1"
+edition = "2024"
+description = "Runs a svelte-gtk4 client bundle in QuickJS, talking to its host over stdin and stdout."
+license = "MIT"
+
+[dependencies]
+rquickjs = "0.14.0"
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

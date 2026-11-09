@@ -58,6 +58,23 @@ tasks:
       - node build.mjs
       - gjs -m dist/gallery.js
 
+  runner:
+    desc: Build the QuickJS runner remote clients run in
+    dir: runner
+    sources:
+      - Cargo.toml
+      - src/**/*
+    generates:
+      - target/release/svelte-gtk4-runner
+    cmds:
+      - cargo build --release
+
+  test:remote:
+    desc: Run a Svelte view in the runner and a row of hostile clients against the host
+    deps: [install, runner]
+    cmds:
+      - node tests/remote/build.mjs
+      - gjs -m tests/remote/dist/run.js {{.ROOT_DIR}}/runner/target/release/svelte-gtk4-runner {{.ROOT_DIR}}/tests/remote/dist
 
   watch:
     desc: Rebuild the bundle on every source change

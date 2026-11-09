@@ -90,6 +90,23 @@ function dedupeSvelte(root) {
   };
 }
 
+// The library's entry points, matched exactly: an alias would also rewrite
+// every subpath under the package name.
+const ENTRY_POINTS = {
+  "@neoworks/svelte-gtk4": here("./src/index.ts"),
+  "@neoworks/svelte-gtk4/client": here("./src/remote/client.svelte.ts"),
+  "@neoworks/svelte-gtk4/host": here("./src/remote/index.ts"),
+};
+
+const entryPointsPlugin = {
+  name: "svelte-gtk4-entry-points",
+  setup(build) {
+    build.onResolve({ filter: /^@neoworks\/svelte-gtk4(\/client|\/host)?$/ }, (args) => ({
+      path: ENTRY_POINTS[args.path],
+    }));
+  },
+};
+
 export async function build(options) {
   await esbuild.build(buildOptions(options));
 }
@@ -110,10 +127,26 @@ export function buildOptions(options) {
     // Gtk.CssProvider, since a GJS bundle has no file next to it to load.
     loader: { ".css": "text" },
     alias: {
-      "@neoworks/svelte-gtk4": here("./src/index.ts"),
       "esm-env": here("./src/esm-env.ts"),
     },
-    plugins: [dedupeSvelte(dirname(options.entry)), sveltePlugin],
+    plugins: [entryPointsPlugin, dedupeSvelte(dirname(options.entry)), sveltePlugin],
     logLevel: "info",
+  };
+}
+
+/**
+ * Bundles a client for the QuickJS runner: one script, no imports left. A
+ * `gi://` import anywhere in it fails the build, since a client never has GTK.
+ */
+export async function buildClient(options) {
+  await esbuild.build(clientBuildOptions(options));
+}
+
+export function clientBuildOptions(options) {
+  return {
+    ...buildOptions(options),
+    format: "iife",
+    target: "es2022",
+    external: [],
   };
 }
