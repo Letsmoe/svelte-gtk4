@@ -25,6 +25,13 @@ export interface PolicyOptions {
    * an image only as `handle={…}` on a picture or image, never as a file.
    */
   paintableOf?(handle: string): unknown;
+  /**
+   * The files behind handles the host gave out, for `drag-files={handles}`.
+   * A client drags out only files the host named to it, never a path.
+   */
+  filesOf?(handles: string[]): string[];
+  /** What a client is told of an event; a drop's paths can become a token. */
+  eventDetail?(type: string, detail: unknown): unknown;
 }
 
 const HANDLE_TAGS = new Set(["gtkpicture"]);
@@ -44,6 +51,7 @@ export interface Policy {
   attribute(tag: string, name: string, value: unknown): unknown;
   allowsEvent(tag: string, type: string): boolean;
   allowsCall(tag: string, method: string): boolean;
+  eventDetail(type: string, detail: unknown): unknown;
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -65,10 +73,8 @@ const REFUSED_TAGS = new Set([
   "gtkwindowhandle",
 ]);
 
-// `css` becomes a display-wide stylesheet rule; the rest name files, take
-// GObjects, or hand files to a drag.
+// These name files, take GObjects, or reach past the client's subtree.
 const REFUSED_ATTRIBUTES = new Set([
-  "css",
   "file",
   "filename",
   "resource",
@@ -77,8 +83,15 @@ const REFUSED_ATTRIBUTES = new Set([
   "gicon",
   "monitor",
   "lock",
-  "drag-files",
 ]);
+
+// Inline `css` becomes a display-wide rule scoped to the widget's own class,
+// so a client may only write declarations: no braces to close the rule with,
+// a short list of properties, and values made of numbers, units and a few
+// transform functions — nothing that loads a file.
+const CSS_PROPERTIES = new Set(["min-width", "min-height", "opacity", "transform"]);
+const CSS_VALUE = /^(?:-?\d+(?:\.\d+)?(?:px|%|deg)?|translate[XY]?|scale[XY]?|rotate|[(),\s])+$/;
+const MAX_CSS_LENGTH = 400;
 
 // Attributes whose value is a name in gtk/registry.ts, or a carry group in
 // gtk/carry.ts.
@@ -100,11 +113,59 @@ export function defaultPolicy(namespace: string, options: PolicyOptions = {}): P
       if (name === "handle") {
         return handleAttribute(options, tag, value);
       }
+      if (name === "drag-files") {
+        return dragFilesAttribute(options, value);
+      }
+      if (name === "css") {
+        return cssAttribute(value);
+      }
       return checkedAttribute(namespace, name, value);
     },
     allowsEvent: (_tag, type) => type.length > 0 && type.length < 64,
     allowsCall: (_tag, method) => ALLOWED_CALLS.has(method),
+    eventDetail: (type, detail) => {
+      if (options.eventDetail === undefined) {
+        return detail;
+      }
+      return options.eventDetail(type, detail);
+    },
   };
+}
+
+// Handles the host does not know drag out as nothing.
+function dragFilesAttribute(options: PolicyOptions, value: unknown): unknown {
+  if (options.filesOf === undefined) {
+    return REFUSED;
+  }
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const handles = value.filter((handle): handle is string => typeof handle === "string");
+  return options.filesOf(handles);
+}
+
+function cssAttribute(value: unknown): unknown {
+  if (value === null || value === "") {
+    return "";
+  }
+  if (typeof value !== "string" || value.length > MAX_CSS_LENGTH) {
+    return REFUSED;
+  }
+  const declarations = value.split(";").map((part) => part.trim()).filter((part) => part !== "");
+  if (!declarations.every(isSafeDeclaration)) {
+    return REFUSED;
+  }
+  return declarations.join("; ");
+}
+
+function isSafeDeclaration(declaration: string): boolean {
+  const colon = declaration.indexOf(":");
+  if (colon <= 0) {
+    return false;
+  }
+  const property = declaration.slice(0, colon).trim();
+  const value = declaration.slice(colon + 1).trim();
+  return CSS_PROPERTIES.has(property) && value !== "" && CSS_VALUE.test(value);
 }
 
 // An empty or unknown handle clears the picture rather than failing: a handle

@@ -352,7 +352,8 @@ export class RemoteTree {
 
   private sendEvent(node: SElement, id: number, type: string, event: unknown): void {
     this.eventSequence += 1;
-    const message: Extract<HostMessage, { t: "event" }> = { t: "event", id, type, detail: plainDetail(event), state: stateOf(node.widget) };
+    const detail = this.policy.eventDetail(type, plainDetail(event));
+    const message: Extract<HostMessage, { t: "event" }> = { t: "event", id, type, detail, state: stateOf(node.widget) };
     const answer = this.answerFor(this.eventSequence);
     if (answer !== undefined) {
       message.answer = answer;

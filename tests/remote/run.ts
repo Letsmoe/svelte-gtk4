@@ -11,6 +11,7 @@ import Gdk from 'gi://Gdk?version=4.0'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk?version=4.0'
 import { SElement, SText } from '../../src/dom/nodes'
+import { dragFilesOf } from '../../src/gtk/dnd'
 import { install } from '../../src/gtk/mirror'
 import { defaultPolicy, RemoteClient } from '../../src/remote/index'
 import type { ClientStatus, Embedder } from '../../src/remote/index'
@@ -31,7 +32,7 @@ function watch(name: string, bundle: string, view: string, props: Record<string,
   const client = new RemoteClient({
     name,
     argv: [runner, `${dist}/${bundle}.js`, '--turn-ms', '300', '--memory-mb', '32'],
-    policy: defaultPolicy(name, { paintableOf }),
+    policy: defaultPolicy(name, { paintableOf, filesOf }),
     embedder: greetingEmbedder,
     onStatus: (status, detail) => {
       statuses.push(status)
@@ -51,6 +52,17 @@ function paintableOf(handle: string): unknown {
     return knownPaintable
   }
   return null
+}
+
+// The one file handle this host gave out.
+function filesOf(handles: string[]): string[] {
+  return handles.filter((handle) => handle === 'known').map(() => '/tmp/known.txt')
+}
+
+// An inline style is applied through a class of the widget's own.
+function hasInlineStyle(anchor: SElement, name: string): boolean {
+  const [widget] = widgetsWithClass(anchor.widget, name)
+  return widget !== undefined && widget.get_css_classes().some((cssClass) => cssClass.startsWith('sg-'))
 }
 
 function pictureHas(anchor: SElement, name: string): boolean {
@@ -137,6 +149,11 @@ async function counter(): Promise<void> {
   expect('counter: first frame', await until(() => labelText(anchor, 'count') === 'count 0', 3000))
   expect('counter: a handle the host gave out shows its paintable', pictureHas(anchor, 'known-picture'))
   expect('counter: a made-up handle shows nothing', !pictureHas(anchor, 'unknown-picture'))
+  expect('counter: plain sizes and transforms are styled inline', hasInlineStyle(anchor, 'sized'))
+  expect('counter: an inline style naming a file is refused whole', !hasInlineStyle(anchor, 'smuggled'))
+  const [dragged] = widgetsWithClass(anchor.widget, 'dragged')
+  const draggedFiles = dragFilesOf(dragged).join(',')
+  expect('counter: a drag carries only files the host handed out', draggedFiles === '/tmp/known.txt', draggedFiles)
   const [button] = widgetsWithClass(anchor.widget, 'more')
   button.emit('clicked')
   expect('counter: a click reaches the client', await until(() => labelText(anchor, 'count') === 'count 1', 2000))

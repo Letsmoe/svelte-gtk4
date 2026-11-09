@@ -208,6 +208,15 @@ export function setDragFiles(widget: Gtk.Widget, value: unknown): void {
   dragSourceFor(widget).paths = pathListOf(value);
 }
 
+/** The paths `widget` drags out as. */
+export function dragFilesOf(widget: Gtk.Widget): string[] {
+  const state = dragSources.get(widget);
+  if (state === undefined) {
+    return [];
+  }
+  return state.paths;
+}
+
 export function addDragOutListener(node: SElement, type: string, handler: EventHandler, fire: Fire): void {
   const state = dragSourceFor(node.widget);
   state.listeners.push({ type, run: () => fire(node, type, handler, null) });
