@@ -1,8 +1,11 @@
 // Svelte's client runtime reads `document`, `window` and the node constructors
 // at module-evaluation time, so this must be the first import in any entry
 // point — before anything that pulls in `svelte/internal/client`.
+//
+// Nothing here imports `gi://`: the same tree runs in a QuickJS runner. A
+// clock installed before this module (gtk/clock.ts, or the runner's own) is
+// kept; otherwise one is built on setTimeout.
 
-import GLib from "gi://GLib";
 import "./parse";
 import {
   SComment,
@@ -80,9 +83,7 @@ function install(): void {
     installFrameClock();
   }
   if (globals.performance === undefined) {
-    globals.performance = {
-      now: () => GLib.get_monotonic_time() / 1000,
-    };
+    globals.performance = { now: () => Date.now() };
   }
 
   // GJS already defines `window` as a read-only alias of the global object, so
@@ -117,32 +118,12 @@ function define(name: string, value: Record<string, unknown>): void {
   }
 }
 
-// GTK drives its own frame clock per surface; a plain 60Hz timeout is enough
-// for the runtime's internal scheduling, which only sequences work rather than
-// painting it.
+// A frame callback only sequences the runtime's work here; nothing paints on
+// it, so a 16 ms timeout is enough.
 function installFrameClock(): void {
-  const pending = new Map<number, number>();
-  let nextHandle = 1;
-
-  globals.requestAnimationFrame = (fn: (time: number) => void) => {
-    const handle = nextHandle++;
-    const source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => {
-      pending.delete(handle);
-      fn(GLib.get_monotonic_time() / 1000);
-      return GLib.SOURCE_REMOVE;
-    });
-    pending.set(handle, source);
-    return handle;
-  };
-
-  globals.cancelAnimationFrame = (handle: number) => {
-    const source = pending.get(handle);
-    if (source === undefined) {
-      return;
-    }
-    GLib.source_remove(source);
-    pending.delete(handle);
-  };
+  globals.requestAnimationFrame = (callback: (time: number) => void) =>
+    setTimeout(() => callback(globals.performance.now()), 16);
+  globals.cancelAnimationFrame = (handle: number) => clearTimeout(handle);
 }
 
 install();

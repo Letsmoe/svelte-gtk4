@@ -1,5 +1,7 @@
 // Order matters: the DOM globals have to exist before Svelte's client runtime
-// is evaluated, and this is the module every entry point imports first.
+// is evaluated, and this is the module every entry point imports first. The
+// GLib clock goes in before them so they keep it.
+import "./gtk/clock";
 import "./dom/globals";
 
 import GLib from "gi://GLib";
