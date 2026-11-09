@@ -24,6 +24,10 @@ import type { EventHandler, SElement } from "../dom/nodes";
 export const DROP_EVENTS = ["drop", "dropenter", "dropleave"];
 
 const URI_LIST = "text/uri-list";
+// Sources differ in what they allow: Firefox under Hyprland offers a dragged
+// image as a move only. Both are accepted, and the drop is always taken as a
+// copy, see finishDrop.
+const ACCEPTED_ACTIONS = Gdk.DragAction.COPY | Gdk.DragAction.MOVE;
 const IMAGE_URL = "application/x-moz-file-promise-url";
 
 type Fire = (node: SElement, type: string, handler: EventHandler, detail: unknown) => void;
@@ -61,16 +65,13 @@ function dropStateFor(node: SElement, fire: Fire): DropState {
   if (existing !== undefined) {
     return existing;
   }
-  const target = Gtk.DropTargetAsync.new(
-    Gdk.ContentFormats.new([URI_LIST]),
-    Gdk.DragAction.COPY,
-  );
+  const target = Gtk.DropTargetAsync.new(Gdk.ContentFormats.new([URI_LIST]), ACCEPTED_ACTIONS);
   const state: DropState = { target, handlers: new Map() };
   const fireAll = (type: string, detail: unknown) => fireHandlers(node, state, fire, type, detail);
   // The returned action is what the source is told this widget accepts.
-  target.connect("drag-enter", () => {
+  target.connect("drag-enter", (_target, drop) => {
     fireAll("dropenter", null);
-    return Gdk.DragAction.COPY;
+    return preferredAction(drop);
   });
   target.connect("drag-leave", () => fireAll("dropleave", null));
   target.connect("drop", (_target, drop, x, y) => {
@@ -150,14 +151,30 @@ function readText(stream: Gio.InputStream, encoding: string, deliver: (text: str
   });
 }
 
+function preferredAction(drop: Gdk.Drop): Gdk.DragAction {
+  if ((drop.get_actions() & Gdk.DragAction.COPY) !== 0) {
+    return Gdk.DragAction.COPY;
+  }
+  return Gdk.DragAction.MOVE;
+}
+
+// A move the source was promised would let it delete what was dropped — a
+// file manager removes the file the app now refers to — so a drop that could
+// only be a move is finished as refused once its data has been read.
 function finishDrop(drop: Gdk.Drop, dropped: DroppedUris, deliver: (dropped: DroppedUris) => void): void {
   if (dropped.paths.length === 0 && dropped.uris.length === 0) {
     console.warn(`svelte-gtk4: a drop carried no URIs; offered ${drop.get_formats().to_string()}`);
-    drop.finish(0);
-  } else {
-    drop.finish(Gdk.DragAction.COPY);
   }
+  drop.finish(finishedAction(drop, dropped));
   deliver(dropped);
+}
+
+function finishedAction(drop: Gdk.Drop, dropped: DroppedUris): Gdk.DragAction {
+  const empty = dropped.paths.length === 0 && dropped.uris.length === 0;
+  if (empty || (drop.get_actions() & Gdk.DragAction.COPY) === 0) {
+    return 0;
+  }
+  return Gdk.DragAction.COPY;
 }
 
 // text/uri-list: one URI per CRLF-terminated line, # starts a comment.
