@@ -63,7 +63,7 @@
           <gtkscale min={0} max={100} step={1} value={volume} draw-value
                     onvalue-changed={(e) => (volume = e.target.widget.get_value())}></gtkscale>
           <gtkspinbutton min={0} max={10} step={1} value={size}></gtkspinbutton>
-          <gtkdropdown items={["Small", "Medium", "Large"]} selected={size}></gtkdropdown>
+          <gtkdropdown items={["Small", "Medium", "Large"]} position={size}></gtkdropdown>
           <gtkseparator></gtkseparator>
           <gtkprogressbar value={volume / 100} show-text text="{volume}%"></gtkprogressbar>
           <gtklevelbar min={0} max={100} value={volume}></gtklevelbar>
