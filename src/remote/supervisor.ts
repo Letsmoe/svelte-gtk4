@@ -11,6 +11,7 @@ import GLib from "gi://GLib";
 import type { SElement } from "../dom/nodes";
 import { ProtocolError, RemoteTree } from "./host";
 import type { Embedder } from "./embed";
+import { type Callbacks, withoutFunctions } from "./callbacks";
 import type { Policy } from "./policy";
 import { ClientProcess } from "./process";
 import type { ClientMessage, HostMessage } from "./protocol";
@@ -35,7 +36,9 @@ export interface RemoteClientOptions {
 
 interface MountedView {
   view: string;
+  // As they cross: plain data, with a marker for every function.
   props: Record<string, unknown>;
+  callbacks: Callbacks;
   anchor: SElement;
 }
 
@@ -46,6 +49,8 @@ const CRASH_WINDOW_MS = 60_000;
 // Of every second of the host's main loop, how much one client may spend.
 const APPLY_BUDGET_MS = 100;
 const APPLY_WINDOW_MS = 1000;
+const MAX_CALLBACKS_PER_WINDOW = 100;
+const CALLBACK_WINDOW_MS = 1000;
 
 export class RemoteClient {
   private readonly options: RemoteClientOptions;
@@ -62,6 +67,8 @@ export class RemoteClient {
   private answeredSequence = 0;
   private applyWindowStart = 0;
   private applySpent = 0;
+  private callbackWindowStart = 0;
+  private callbackCount = 0;
   status: ClientStatus = "starting";
 
   constructor(options: RemoteClientOptions) {
@@ -74,13 +81,17 @@ export class RemoteClient {
     this.spawn();
   }
 
-  /** Mounts a view into `anchor`; answers the instance, which stays valid across restarts. */
+  /**
+   * Mounts a view into `anchor`; answers the instance, which stays valid
+   * across restarts. Functions in `props` reach the client as callbacks.
+   */
   mount(view: string, props: Record<string, unknown>, anchor: SElement): number {
     const instance = this.nextInstance++;
-    this.views.set(instance, { view, props, anchor });
+    const crossing = crossingProps(props);
+    this.views.set(instance, { view, props: crossing.props, callbacks: crossing.callbacks, anchor });
     this.tree.attach(instance, anchor);
     if (this.ready) {
-      this.send({ t: "mount", instance, view, props });
+      this.send({ t: "mount", instance, view, props: crossing.props });
     }
     return instance;
   }
@@ -90,9 +101,11 @@ export class RemoteClient {
     if (mounted === undefined) {
       return;
     }
-    mounted.props = props;
+    const crossing = crossingProps(props);
+    mounted.props = crossing.props;
+    mounted.callbacks = crossing.callbacks;
     if (this.ready) {
-      this.send({ t: "props", instance, props });
+      this.send({ t: "props", instance, props: crossing.props });
     }
   }
 
@@ -163,9 +176,42 @@ export class RemoteClient {
         console.warn(`${this.options.name}: view ${message.instance}: ${message.message}`);
         this.notify("running", String(message.message));
         return;
+      case "callback":
+        this.callBack(message.instance, message.name, message.args);
+        return;
       default:
         this.kill("sent a message the protocol does not have");
     }
+  }
+
+  // An unknown instance or name is not an error: the view may have been
+  // unmounted, or given new props, while the call was on its way.
+  private callBack(instance: unknown, name: unknown, args: unknown): void {
+    const mounted = this.views.get(Number(instance));
+    if (mounted === undefined || typeof name !== "string" || !this.callbackAllowed()) {
+      return;
+    }
+    const callback = mounted.callbacks.get(name);
+    if (callback === undefined) {
+      return;
+    }
+    try {
+      callback(...argumentsOf(args));
+    } catch (error) {
+      console.warn(`${this.options.name}: callback ${name}:`, error);
+    }
+  }
+
+  // A callback runs host code, so a client calling back in a loop is cut off
+  // at a rate no view needs.
+  private callbackAllowed(): boolean {
+    const now = GLib.get_monotonic_time() / 1000;
+    if (now - this.callbackWindowStart > CALLBACK_WINDOW_MS) {
+      this.callbackWindowStart = now;
+      this.callbackCount = 0;
+    }
+    this.callbackCount += 1;
+    return this.callbackCount <= MAX_CALLBACKS_PER_WINDOW;
   }
 
   private becameReady(): void {
@@ -283,6 +329,24 @@ export class RemoteClient {
       this.options.onStatus(status, detail);
     }
   }
+}
+
+// What crosses has to survive JSON: functions become callback markers, and
+// anything else JSON cannot carry, like a GObject, is dropped.
+function crossingProps(props: Record<string, unknown>): { props: Record<string, unknown>; callbacks: Callbacks } {
+  const split = withoutFunctions(props);
+  try {
+    return { props: JSON.parse(JSON.stringify(split.props)), callbacks: split.callbacks };
+  } catch {
+    return { props: {}, callbacks: split.callbacks };
+  }
+}
+
+function argumentsOf(args: unknown): unknown[] {
+  if (!Array.isArray(args)) {
+    return [];
+  }
+  return args;
 }
 
 function embedderOf(options: RemoteClientOptions): Embedder | null {

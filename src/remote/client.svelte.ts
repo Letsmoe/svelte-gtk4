@@ -35,6 +35,7 @@ import {
   type Operation,
   type WidgetState,
 } from "./protocol";
+import { withCallbacks } from "./callbacks";
 
 export interface ClientOptions {
   /** Props every instance gets besides the host's, like a bus. */
@@ -141,7 +142,7 @@ function mountInstance(
   }
   const root = new SElement("#root");
   queue([OP_ROOT, instance, register(root)]);
-  const props = $state({ ...hostProps, ...extraProps(instance) });
+  const props = $state({ ...withHostCallbacks(instance, hostProps), ...extraProps(instance) });
   try {
     const component = mount(View as any, { target: root as any, props });
     instances.set(instance, { component, props, root });
@@ -162,7 +163,16 @@ function updateProps(instance: number, hostProps: Record<string, unknown>): void
   if (found === undefined) {
     return;
   }
-  Object.assign(found.props, hostProps);
+  Object.assign(found.props, withHostCallbacks(instance, hostProps));
+}
+
+// The host's functions arrive as markers; each becomes one that asks the
+// host to call the original.
+function withHostCallbacks(instance: number, hostProps: Record<string, unknown>): Record<string, unknown> {
+  const call = (name: string, args: unknown[]): void => {
+    send({ t: "callback", instance, name, args: wireValue(args) });
+  };
+  return withCallbacks(hostProps, call) as Record<string, unknown>;
 }
 
 function unmountInstance(instance: number): void {

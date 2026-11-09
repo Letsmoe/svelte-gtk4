@@ -42,12 +42,17 @@ export interface WidgetState {
   selected?: number;
 }
 
+// A function in a view's props crosses as this marker, and the client's
+// stand-in for it asks the host to call the original.
+export const CALLBACK_KEY = "$callback";
+
 export type ClientMessage =
   | { t: "ready" }
   | { t: "batch"; ops: Operation[] }
   | { t: "app"; data: unknown }
   | { t: "pong"; seq: number }
-  | { t: "error"; instance: number; message: string };
+  | { t: "error"; instance: number; message: string }
+  | { t: "callback"; instance: number; name: string; args: unknown[] };
 
 export type HostMessage =
   | { t: "mount"; instance: number; view: string; props: Record<string, unknown> }

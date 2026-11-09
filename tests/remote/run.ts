@@ -131,7 +131,8 @@ function expect(name: string, passed: boolean, detail = ''): void {
 }
 
 async function counter(): Promise<void> {
-  const watched = watch('counter', 'counter', 'counter', { start: 0 })
+  let calledBack = -1
+  const watched = watch('counter', 'counter', 'counter', { start: 0, onmore: (count: number) => (calledBack = count) })
   const anchor = watched.anchor
   expect('counter: first frame', await until(() => labelText(anchor, 'count') === 'count 0', 3000))
   expect('counter: a handle the host gave out shows its paintable', pictureHas(anchor, 'known-picture'))
@@ -139,6 +140,7 @@ async function counter(): Promise<void> {
   const [button] = widgetsWithClass(anchor.widget, 'more')
   button.emit('clicked')
   expect('counter: a click reaches the client', await until(() => labelText(anchor, 'count') === 'count 1', 2000))
+  expect('counter: a function in props calls back into the host', await until(() => calledBack === 1, 2000))
   const [field] = widgetsWithClass(anchor.widget, 'field')
   ;(field as Gtk.Entry).set_text('hello')
   expect('counter: typed text comes back', await until(() => labelText(anchor, 'typed') === 'hello', 2000))
